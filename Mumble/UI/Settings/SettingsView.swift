@@ -1,5 +1,12 @@
 import SwiftUI
 
+private enum SettingsMetrics {
+    static let chromePadding: CGFloat = 20
+    static let contentPadding: CGFloat = 20
+    static let sectionSpacing: CGFloat = 20
+    static let rowMinHeight: CGFloat = 30
+}
+
 struct SettingsView: View {
     @Environment(AppEnvironment.self) private var env
     @Environment(\.colorScheme) private var colorScheme
@@ -27,22 +34,27 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text("Settings").font(.system(size: 18, weight: .semibold))
-                Spacer()
-            }
-            .padding(20)
-
-            Picker("", selection: $tab) {
-                ForEach(Tab.allCases) { t in
-                    Label(t.rawValue, systemImage: t.icon).tag(t)
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Settings").font(.system(size: 18, weight: .semibold))
+                    Spacer()
                 }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding(.horizontal, 20)
 
-            Divider().overlay(Theme.separator(for: colorScheme)).padding(.top, 16)
+                Picker("", selection: $tab) {
+                    ForEach(Tab.allCases) { t in
+                        Label(t.rawValue, systemImage: t.icon)
+                            .font(.system(size: 13, weight: .medium))
+                            .tag(t)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .font(.system(size: 13, weight: .medium))
+                .controlSize(.regular)
+                .labelsHidden()
+            }
+            .padding(SettingsMetrics.chromePadding)
+
+            Divider().overlay(Theme.separator(for: colorScheme))
 
             ScrollView {
                 Group {
@@ -55,7 +67,7 @@ struct SettingsView: View {
                     case .permissions: PermissionsSettingsSection()
                     }
                 }
-                .padding(24)
+                .padding(SettingsMetrics.contentPadding)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -71,21 +83,18 @@ private struct GeneralSettingsSection: View {
 
     var body: some View {
         @Bindable var settings = env.settings
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: SettingsMetrics.sectionSpacing) {
             SettingsGroup("Appearance") {
                 LabeledRow("Theme") {
-                    Picker("", selection: $settings.appearance) {
-                        ForEach(AppearanceMode.allCases) { mode in
-                            Text(mode.label).tag(mode)
-                        }
+                    BelowDropdownPicker(selection: $settings.appearance, values: AppearanceMode.allCases, minWidth: 126) { mode in
+                        Text(mode.label)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(Theme.textPrimary(for: colorScheme))
+                    } rowContent: { mode, _ in
+                        Text(mode.label)
                     }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .fixedSize()
                 }
-                Text("Choose System to follow your Mac's light or dark mode.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Theme.textTertiary(for: colorScheme))
+                SettingsFootnote("Choose System to follow your Mac's light or dark mode.")
             }
         }
     }
@@ -98,20 +107,30 @@ private struct RecordingSettingsSection: View {
 
     var body: some View {
         @Bindable var settings = env.settings
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: SettingsMetrics.sectionSpacing) {
             SettingsGroup("Transcription") {
                 LabeledRow("Language") {
-                    Picker("", selection: $settings.language) {
-                        ForEach(LanguageOption.all) { Text($0.name).tag($0.code) }
-                    }.labelsHidden().fixedSize()
+                    BelowDropdownPicker(selection: $settings.language, values: LanguageOption.all.map(\.code), minWidth: 168) { code in
+                        Text(LanguageOption.name(for: code))
+                            .font(.system(size: 12, weight: .medium))
+                    } rowContent: { code, _ in
+                        Text(LanguageOption.name(for: code))
+                    }
                 }
                 LabeledRow("Model") {
-                    Picker("", selection: $settings.modelName) {
-                        ForEach(ModelManager.catalog) { model in
-                            Text(env.modelManager.isReady(model.name) ? model.displayName : "\(model.displayName) (not downloaded)")
-                                .tag(model.name)
+                    BelowDropdownPicker(selection: $settings.modelName, values: ModelManager.catalog.map(\.name), minWidth: 210) { name in
+                        Text(env.modelManager.displayName(for: name))
+                            .font(.system(size: 12, weight: .medium))
+                    } rowContent: { name, _ in
+                        HStack {
+                            Text(env.modelManager.displayName(for: name))
+                            if !env.modelManager.isReady(name) {
+                                Text("Not downloaded")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(Theme.recording)
+                            }
                         }
-                    }.labelsHidden().fixedSize()
+                    }
                 }
                 if !env.modelManager.isReady(settings.modelName) {
                     ModelNotDownloadedNote(modelName: settings.modelName)
@@ -133,10 +152,11 @@ private struct RecordingSettingsSection: View {
 
 private struct DictationSettingsSection: View {
     @Environment(AppEnvironment.self) private var env
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         @Bindable var settings = env.settings
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: SettingsMetrics.sectionSpacing) {
             SettingsGroup("Push-to-talk") {
                 HStack(spacing: 10) {
                     Image(systemName: "option")
@@ -147,7 +167,7 @@ private struct DictationSettingsSection: View {
                             .font(.system(size: 13, weight: .medium))
                         Text("Works on top of any app. Release to transcribe and paste.")
                             .font(.system(size: 11))
-                            .foregroundStyle(Theme.textTertiary)
+                            .foregroundStyle(Theme.textTertiary(for: colorScheme))
                     }
                     Spacer()
                 }
@@ -159,16 +179,14 @@ private struct DictationSettingsSection: View {
                          ? "Hotkey active"
                          : "Hotkey inactive — grant Input Monitoring in the Permissions tab")
                         .font(.system(size: 11))
-                        .foregroundStyle(Theme.textSecondary)
+                        .foregroundStyle(Theme.textSecondary(for: colorScheme))
                     Spacer()
                     if !env.dictation.isMonitoring {
                         Button("Enable") { env.dictation.startMonitoring(); env.permissions.refresh() }
                             .controlSize(.small)
                     }
                 }
-                Text("You can also start/stop hands-free from the menu bar icon.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Theme.textTertiary)
+                SettingsFootnote("You can also start/stop hands-free from the menu bar icon.")
             }
 
             SettingsGroup("Output") {
@@ -177,9 +195,7 @@ private struct DictationSettingsSection: View {
                 ToggleRow("Restore clipboard after paste", isOn: $settings.restoreClipboard)
             }
 
-            Text("Pasting into other apps requires Accessibility permission (see the Permissions tab) and only works in a non-sandboxed build.")
-                .font(.system(size: 11))
-                .foregroundStyle(Theme.textTertiary)
+            SettingsFootnote("Pasting into other apps requires Accessibility permission (see the Permissions tab) and only works in a non-sandboxed build.")
         }
     }
 }
@@ -191,10 +207,10 @@ private struct ModelsSettingsSection: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: SettingsMetrics.sectionSpacing) {
             Text("Download a model to use Mumble. They are cached locally; larger models are more accurate but slower. You can download several at once.")
                 .font(.system(size: 12))
-                .foregroundStyle(Theme.textSecondary)
+                .foregroundStyle(Theme.textSecondary(for: colorScheme))
 
             ForEach(ModelManager.catalog) { model in
                 modelRow(model)
@@ -216,13 +232,13 @@ private struct ModelsSettingsSection: View {
                             .background(Theme.accent.opacity(0.15), in: Capsule())
                     }
                 }
-                Text(model.detail).font(.system(size: 11)).foregroundStyle(Theme.textSecondary)
-                Text(model.approxSize).font(.system(size: 10)).foregroundStyle(Theme.textTertiary)
+                Text(model.detail).font(.system(size: 11)).foregroundStyle(Theme.textSecondary(for: colorScheme))
+                Text(model.approxSize).font(.system(size: 10)).foregroundStyle(Theme.textTertiary(for: colorScheme))
             }
             Spacer()
             stateView(model: model, state: state, isCurrent: isCurrent)
         }
-        .contentCard(padding: 14, cornerRadius: Theme.cornerRadius)
+        .contentCard(padding: 16, cornerRadius: Theme.cornerRadius)
         .overlay(
             RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous)
                 .strokeBorder(isCurrent ? Theme.accent.opacity(0.5) : Theme.separator(for: colorScheme), lineWidth: 1)
@@ -235,7 +251,7 @@ private struct ModelsSettingsSection: View {
         case .downloading(let p):
             VStack(spacing: 4) {
                 ProgressView(value: p).frame(width: 90).tint(Theme.accent)
-                Text("\(Int(p * 100))%").font(.system(size: 10)).foregroundStyle(Theme.textTertiary)
+                Text("\(Int(p * 100))%").font(.system(size: 10)).foregroundStyle(Theme.textTertiary(for: colorScheme))
             }
         case .ready:
             if isCurrent {
@@ -273,33 +289,50 @@ private struct DictionarySettingsSection: View {
 
     var body: some View {
         @Bindable var settings = env.settings
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Replace spoken words with preferred spellings (names, acronyms, technical terms). Matching is case-insensitive.")
-                .font(.system(size: 12)).foregroundStyle(Theme.textSecondary)
+        VStack(alignment: .leading, spacing: SettingsMetrics.sectionSpacing) {
+            SettingsGroup("Add replacement") {
+                Text("Replace spoken words with preferred spellings. Matching is case-insensitive.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.textSecondary(for: colorScheme))
 
-            HStack(spacing: 8) {
-                TextField("Heard…", text: $newFrom).textFieldStyle(.roundedBorder).frame(width: 160)
-                Image(systemName: "arrow.right").foregroundStyle(Theme.textTertiary)
-                TextField("Replace with…", text: $newTo).textFieldStyle(.roundedBorder).frame(width: 160)
-                Button("Add") { addEntry() }
-                    .disabled(newFrom.trimmingCharacters(in: .whitespaces).isEmpty)
+                HStack(spacing: 8) {
+                    TextField("Heard…", text: $newFrom)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: .infinity)
+                    Image(systemName: "arrow.right")
+                        .foregroundStyle(Theme.textTertiary(for: colorScheme))
+                    TextField("Replace with…", text: $newTo)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: .infinity)
+                    Button("Add") { addEntry() }
+                        .disabled(newFrom.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
             }
 
-            if settings.dictionaryEntries.isEmpty {
-                Text("No entries yet.").font(.system(size: 12)).foregroundStyle(Theme.textTertiary).padding(.top, 4)
-            } else {
-                VStack(spacing: 6) {
-                    ForEach(settings.dictionaryEntries) { entry in
-                        HStack {
-                            Text(entry.from).font(.system(size: 12, weight: .medium))
-                            Image(systemName: "arrow.right").font(.system(size: 9)).foregroundStyle(Theme.textTertiary)
-                            Text(entry.to).font(.system(size: 12)).foregroundStyle(Theme.textSecondary)
-                            Spacer()
-                            Button { remove(entry) } label: { Image(systemName: "xmark.circle.fill") }
-                                .buttonStyle(.plain).foregroundStyle(Theme.textTertiary)
+            SettingsGroup("Entries") {
+                if settings.dictionaryEntries.isEmpty {
+                    Text("No entries yet.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.textTertiary(for: colorScheme))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    VStack(spacing: 8) {
+                        ForEach(settings.dictionaryEntries) { entry in
+                            HStack {
+                                Text(entry.from).font(.system(size: 12, weight: .medium))
+                                Image(systemName: "arrow.right")
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(Theme.textTertiary(for: colorScheme))
+                                Text(entry.to)
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(Theme.textSecondary(for: colorScheme))
+                                Spacer()
+                                Button { remove(entry) } label: { Image(systemName: "xmark.circle.fill") }
+                                    .buttonStyle(.plain)
+                                    .foregroundStyle(Theme.textTertiary(for: colorScheme))
+                            }
+                            .frame(minHeight: SettingsMetrics.rowMinHeight)
                         }
-                        .padding(.horizontal, 12).padding(.vertical, 8)
-                        .background(Theme.cardBackground(for: colorScheme), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
                 }
             }
@@ -326,38 +359,40 @@ private struct PermissionsSettingsSection: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            permissionRow(
-                title: "Microphone",
-                detail: "Required to record audio for transcription.",
-                state: env.permissions.microphone,
-                action: { Task { await env.permissions.requestMicrophone() } },
-                openSettings: { env.permissions.openMicrophoneSettings() }
-            )
-            permissionRow(
-                title: "Accessibility",
-                detail: "Required to paste dictated text into other apps.",
-                state: env.permissions.accessibility,
-                action: { env.permissions.requestAccessibility(prompt: true) },
-                openSettings: { env.permissions.openAccessibilitySettings() }
-            )
-            permissionRow(
-                title: "Input Monitoring",
-                detail: "Required for the global push-to-talk hotkey.",
-                state: env.permissions.inputMonitoring,
-                action: { env.permissions.requestInputMonitoring() },
-                openSettings: { env.permissions.openInputMonitoringSettings() }
-            )
-            if PermissionsService.menuBarPermissionRequired {
+        VStack(alignment: .leading, spacing: SettingsMetrics.sectionSpacing) {
+            SettingsGroup("System permissions") {
                 permissionRow(
-                    title: "Menu Bar",
-                    detail: "Required to show the Mumble icon in the menu bar (macOS Tahoe). If Mumble is missing from System Settings → Menu Bar, quit and reopen the app.",
-                    state: env.permissions.menuBar,
-                    action: { env.permissions.requestMenuBar() },
-                    openSettings: { env.permissions.openMenuBarSettings() }
+                    title: "Microphone",
+                    detail: "Required to record audio for transcription.",
+                    state: env.permissions.microphone,
+                    action: { Task { await env.permissions.requestMicrophone() } },
+                    openSettings: { env.permissions.openMicrophoneSettings() }
                 )
+                permissionRow(
+                    title: "Accessibility",
+                    detail: "Required to paste dictated text into other apps.",
+                    state: env.permissions.accessibility,
+                    action: { env.permissions.requestAccessibility(prompt: true) },
+                    openSettings: { env.permissions.openAccessibilitySettings() }
+                )
+                permissionRow(
+                    title: "Input Monitoring",
+                    detail: "Required for the global push-to-talk hotkey.",
+                    state: env.permissions.inputMonitoring,
+                    action: { env.permissions.requestInputMonitoring() },
+                    openSettings: { env.permissions.openInputMonitoringSettings() }
+                )
+                if PermissionsService.menuBarPermissionRequired {
+                    permissionRow(
+                        title: "Menu Bar",
+                        detail: "Required to show the Mumble icon in the menu bar (macOS Tahoe). If Mumble is missing from System Settings → Menu Bar, quit and reopen the app.",
+                        state: env.permissions.menuBar,
+                        action: { env.permissions.requestMenuBar() },
+                        openSettings: { env.permissions.openMenuBarSettings() }
+                    )
+                }
             }
-            HStack {
+            HStack(spacing: 12) {
                 Button("Refresh status") {
                     env.permissions.refresh()
                     env.dictation.startMonitoring()
@@ -366,7 +401,7 @@ private struct PermissionsSettingsSection: View {
                 Button("Run setup again") { env.showOnboarding = true }
                     .controlSize(.small)
             }
-            .padding(.top, 4)
+            .foregroundStyle(Theme.textSecondary(for: colorScheme))
         }
         .onAppear { env.permissions.refresh() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
@@ -395,7 +430,7 @@ private struct PermissionsSettingsSection: View {
                 Button("Open Settings", action: openSettings).controlSize(.small)
             }
         }
-        .contentCard(padding: 14, cornerRadius: Theme.cornerRadius)
+        .frame(minHeight: SettingsMetrics.rowMinHeight)
     }
 
     private func icon(_ s: PermissionState) -> String {
@@ -410,7 +445,7 @@ private struct PermissionsSettingsSection: View {
         switch s {
         case .granted: return Theme.success
         case .denied: return Theme.recording
-        case .notDetermined: return Theme.textTertiary
+        case .notDetermined: return Theme.textTertiary(for: colorScheme)
         }
     }
 }
@@ -432,7 +467,7 @@ private struct SettingsGroup<Content: View>: View {
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(Theme.textTertiary(for: colorScheme))
             VStack(spacing: 12) { content }
-                .contentCard(cornerRadius: 16)
+                .contentCard(padding: 16, cornerRadius: Theme.cornerRadius)
         }
     }
 }
@@ -447,16 +482,18 @@ private struct LabeledRow<Content: View>: View {
         self.content = content()
     }
     var body: some View {
-        HStack {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text(title).font(.system(size: 13)).foregroundStyle(Theme.textPrimary(for: colorScheme))
-            Spacer()
+                .frame(maxWidth: .infinity, alignment: .leading)
             content
         }
+        .frame(minHeight: SettingsMetrics.rowMinHeight)
     }
 }
 
 struct ModelNotDownloadedNote: View {
     @Environment(AppEnvironment.self) private var env
+    @Environment(\.colorScheme) private var colorScheme
     let modelName: String
 
     var body: some View {
@@ -468,10 +505,10 @@ struct ModelNotDownloadedNote: View {
             switch state {
             case .downloading(let p):
                 Text("Downloading \(env.modelManager.displayName(for: modelName))…")
-                    .font(.system(size: 11)).foregroundStyle(Theme.textSecondary)
+                    .font(.system(size: 11)).foregroundStyle(Theme.textSecondary(for: colorScheme))
                 Spacer()
                 Text("\(Int(p * 100))%")
-                    .font(.system(size: 11, design: .monospaced)).foregroundStyle(Theme.textSecondary)
+                    .font(.system(size: 11, design: .monospaced)).foregroundStyle(Theme.textSecondary(for: colorScheme))
             case .failed:
                 Text("Download failed.")
                     .font(.system(size: 11)).foregroundStyle(Theme.recording)
@@ -479,7 +516,7 @@ struct ModelNotDownloadedNote: View {
                 Button("Retry") { env.modelManager.download(modelName) }.controlSize(.small)
             default:
                 Text("This model isn’t downloaded yet.")
-                    .font(.system(size: 11)).foregroundStyle(Theme.textSecondary)
+                    .font(.system(size: 11)).foregroundStyle(Theme.textSecondary(for: colorScheme))
                 Spacer()
                 Button("Download") { env.modelManager.download(modelName) }
                     .controlSize(.small).tint(Theme.accent)
@@ -487,6 +524,23 @@ struct ModelNotDownloadedNote: View {
         }
         .padding(10)
         .background(Theme.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+}
+
+private struct SettingsFootnote: View {
+    let text: String
+    @Environment(\.colorScheme) private var colorScheme
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 11))
+            .foregroundStyle(Theme.textTertiary(for: colorScheme))
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -500,10 +554,11 @@ private struct ToggleRow: View {
         self._isOn = isOn
     }
     var body: some View {
-        HStack {
+        HStack(spacing: 12) {
             Text(title).font(.system(size: 13)).foregroundStyle(Theme.textPrimary(for: colorScheme))
-            Spacer()
+                .frame(maxWidth: .infinity, alignment: .leading)
             Toggle("", isOn: $isOn).labelsHidden().toggleStyle(.switch).controlSize(.small).tint(Theme.accent)
         }
+        .frame(minHeight: SettingsMetrics.rowMinHeight)
     }
 }

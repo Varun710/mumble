@@ -43,7 +43,12 @@ private struct LegacyGlassPanelModifier: ViewModifier {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         content
             .background(.ultraThinMaterial, in: shape)
+            .background(
+                Color(hex: 0x111026).opacity(colorScheme == .dark ? 0.26 : 0.08),
+                in: shape
+            )
             .overlay(shape.strokeBorder(Theme.glassEdge(for: colorScheme), lineWidth: 1))
+            .shadow(color: .black.opacity(colorScheme == .dark ? 0.22 : 0.08), radius: 24, y: 18)
     }
 }
 
@@ -81,5 +86,103 @@ struct MumbleGlassContainer<Content: View>: View {
         } else {
             content()
         }
+    }
+}
+
+// MARK: - Below-anchored dropdowns
+
+struct BelowDropdown<Label: View, Content: View>: View {
+    var minWidth: CGFloat = 140
+    @ViewBuilder let label: () -> Label
+    @ViewBuilder let content: (_ dismiss: @escaping () -> Void) -> Content
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var isPresented = false
+
+    var body: some View {
+        Button {
+            isPresented.toggle()
+        } label: {
+            HStack(spacing: 6) {
+                label()
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(Theme.textTertiary(for: colorScheme))
+            }
+        }
+        .buttonStyle(.plain)
+        .popover(
+            isPresented: $isPresented,
+            attachmentAnchor: .rect(.bounds),
+            arrowEdge: .top
+        ) {
+            VStack(alignment: .leading, spacing: 4) {
+                content { isPresented = false }
+            }
+            .padding(8)
+            .frame(minWidth: minWidth, alignment: .leading)
+        }
+    }
+}
+
+struct BelowDropdownPicker<Value: Hashable, Label: View, RowContent: View>: View {
+    @Binding var selection: Value
+    let values: [Value]
+    var minWidth: CGFloat = 140
+    var isDisabled: (Value) -> Bool = { _ in false }
+    var onSelect: (Value) -> Void = { _ in }
+    @ViewBuilder let label: (Value) -> Label
+    @ViewBuilder let rowContent: (Value, Bool) -> RowContent
+    @Environment(\.colorScheme) private var colorScheme
+
+    init(
+        selection: Binding<Value>,
+        values: [Value],
+        minWidth: CGFloat = 140,
+        @ViewBuilder label: @escaping (Value) -> Label,
+        @ViewBuilder rowContent: @escaping (Value, Bool) -> RowContent,
+        isDisabled: @escaping (Value) -> Bool = { _ in false },
+        onSelect: @escaping (Value) -> Void = { _ in }
+    ) {
+        self._selection = selection
+        self.values = values
+        self.minWidth = minWidth
+        self.label = label
+        self.rowContent = rowContent
+        self.isDisabled = isDisabled
+        self.onSelect = onSelect
+    }
+
+    var body: some View {
+        BelowDropdown(minWidth: minWidth) {
+            label(selection)
+        } content: { dismiss in
+            ForEach(values, id: \.self) { value in
+                let isSelected = value == selection
+                Button {
+                    selection = value
+                    onSelect(value)
+                    dismiss()
+                } label: {
+                    HStack(spacing: 8) {
+                        rowContent(value, isSelected)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        if isSelected {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(Theme.accent)
+                        }
+                    }
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Theme.textPrimary(for: colorScheme))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(isSelected ? Theme.selection : Color.clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(isDisabled(value))
+            }
+        }
+        .fixedSize()
     }
 }

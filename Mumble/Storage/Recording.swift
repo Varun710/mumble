@@ -63,3 +63,28 @@ final class Recording {
         return FileManager.default.fileExists(atPath: url.path)
     }
 }
+
+@MainActor
+enum RecordingDeletion {
+    static func delete(_ recording: Recording, in context: ModelContext) throws {
+        let audioURLs = [recording.audioURL].compactMap { $0 }
+        context.delete(recording)
+        try context.save()
+        try deleteAudioFiles(audioURLs)
+    }
+
+    static func delete(_ recordings: [Recording], in context: ModelContext) throws {
+        let audioURLs = recordings.compactMap(\.audioURL)
+        for recording in recordings {
+            context.delete(recording)
+        }
+        try context.save()
+        try deleteAudioFiles(audioURLs)
+    }
+
+    private static func deleteAudioFiles(_ urls: [URL]) throws {
+        for url in urls where FileManager.default.fileExists(atPath: url.path) {
+            try FileManager.default.removeItem(at: url)
+        }
+    }
+}

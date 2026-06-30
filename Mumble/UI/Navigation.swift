@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// What the center pane is currently showing.
 enum SidebarItem: Hashable {
@@ -17,9 +18,24 @@ enum SidebarItem: Hashable {
 
     /// Whether the right-hand recording panel is visible for this item.
     var showsRecordingPanel: Bool {
-        switch self {
-        case .home, .recordings, .recording: return true
-        case .notes, .settings: return false
-        }
+        false
+    }
+}
+
+struct RecordingLibraryCommandContext {
+    var selectAll: () -> Void
+    var deleteSelection: () -> Void
+    var canSelectAll: Bool
+    var canDelete: Bool
+}
+
+private struct RecordingLibraryCommandContextKey: FocusedValueKey {
+    typealias Value = RecordingLibraryCommandContext
+}
+
+extension FocusedValues {
+    var recordingLibraryCommandContext: RecordingLibraryCommandContext? {
+        get { self[RecordingLibraryCommandContextKey.self] }
+        set { self[RecordingLibraryCommandContextKey.self] = newValue }
     }
 }

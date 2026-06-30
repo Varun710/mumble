@@ -42,9 +42,12 @@ final class OverlayController {
     private static let minPanelHeight: CGFloat = 52
 
     func setAppearance(_ mode: AppearanceMode) {
-        guard appearance != mode else { return }
+        let didChange = appearance != mode
         appearance = mode
-        refreshRootView()
+        if didChange {
+            refreshRootView()
+        }
+        applyOverlayAppearance()
     }
 
     func show() {
@@ -54,6 +57,7 @@ final class OverlayController {
         let panel = panel ?? makePanel()
         self.panel = panel
         ensureHostingView(on: panel)
+        applyOverlayAppearance()
 
         if lastSizedPhase != model.phase {
             resizePanelToFit()
@@ -100,6 +104,7 @@ final class OverlayController {
             container.translatesAutoresizingMaskIntoConstraints = true
             glassContainer = container
             panel.contentView = container
+            applyOverlayAppearance()
         }
     }
 
@@ -107,6 +112,7 @@ final class OverlayController {
         if #available(macOS 26, *) {
             let glass = NSGlassEffectView()
             glass.style = .regular
+            glass.appearance = nsAppearance
             glass.cornerRadius = 22
             hosting.autoresizingMask = [.width, .height]
             glass.contentView = hosting
@@ -114,10 +120,13 @@ final class OverlayController {
         }
 
         let effect = NSVisualEffectView()
-        effect.material = .hudWindow
+        effect.material = overlayMaterial
         effect.blendingMode = .behindWindow
         effect.state = .active
+        effect.appearance = nsAppearance
         effect.wantsLayer = true
+        effect.layer?.cornerRadius = 22
+        effect.layer?.masksToBounds = true
         hosting.frame = effect.bounds
         hosting.autoresizingMask = [.width, .height]
         effect.addSubview(hosting)
@@ -128,8 +137,38 @@ final class OverlayController {
         hostingView?.rootView = makeRootView()
     }
 
+    private func applyOverlayAppearance() {
+        panel?.appearance = nsAppearance
+        glassContainer?.appearance = nsAppearance
+        if let effect = glassContainer as? NSVisualEffectView {
+            effect.material = overlayMaterial
+        }
+    }
+
     private func makeRootView() -> OverlayRootView {
         OverlayRootView(model: model, appearance: appearance)
+    }
+
+    private var nsAppearance: NSAppearance? {
+        switch appearance {
+        case .system: return nil
+        case .light: return NSAppearance(named: .aqua)
+        case .dark: return NSAppearance(named: .darkAqua)
+        }
+    }
+
+    private var overlayMaterial: NSVisualEffectView.Material {
+        resolvedColorScheme == .light ? .popover : .hudWindow
+    }
+
+    private var resolvedColorScheme: ColorScheme {
+        switch appearance {
+        case .light: return .light
+        case .dark: return .dark
+        case .system:
+            let bestMatch = NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua])
+            return bestMatch == .aqua ? .light : .dark
+        }
     }
 
     private func resizePanelToFit() {

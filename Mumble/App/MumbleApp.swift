@@ -19,17 +19,7 @@ struct MumbleApp: App {
         .windowToolbarStyle(.unified)
         .defaultSize(width: 1080, height: 720)
         .commands {
-            CommandGroup(after: .newItem) {
-                Button("New Recording") { env.recorder.toggle() }
-                    .keyboardShortcut("r", modifiers: .command)
-            }
-            CommandGroup(replacing: .appTermination) {
-                Button("Quit Mumble") {
-                    env.shutdown()
-                    NSApp.terminate(nil)
-                }
-                .keyboardShortcut("q")
-            }
+            MumbleCommands(env: env)
         }
 
         Settings {
@@ -38,6 +28,40 @@ struct MumbleApp: App {
                 .modelContainer(env.container)
                 .frame(width: 640, height: 560)
                 .preferredColorScheme(env.settings.appearance.colorScheme)
+        }
+    }
+}
+
+private struct MumbleCommands: Commands {
+    let env: AppEnvironment
+    @FocusedValue(\.recordingLibraryCommandContext) private var recordingLibraryCommandContext
+
+    var body: some Commands {
+        CommandGroup(replacing: .newItem) {
+            Button("New Recording") { env.recorder.toggle() }
+                .keyboardShortcut("n", modifiers: .command)
+        }
+
+        CommandMenu("Recordings") {
+            Button("Select All Recordings") {
+                recordingLibraryCommandContext?.selectAll()
+            }
+            .keyboardShortcut("a", modifiers: .command)
+            .disabled(recordingLibraryCommandContext?.canSelectAll != true)
+
+            Button("Delete Selected Recordings", role: .destructive) {
+                recordingLibraryCommandContext?.deleteSelection()
+            }
+            .keyboardShortcut(.delete, modifiers: [])
+            .disabled(recordingLibraryCommandContext?.canDelete != true)
+        }
+
+        CommandGroup(replacing: .appTermination) {
+            Button("Quit Mumble") {
+                env.shutdown()
+                NSApp.terminate(nil)
+            }
+            .keyboardShortcut("q")
         }
     }
 }

@@ -28,6 +28,9 @@ struct RecordOrb: View {
                 }
             }
             .buttonStyle(.plain)
+            .onAppear {
+                pulse = (phase == .recording)
+            }
             .onChange(of: phase) { _, newValue in
                 pulse = (newValue == .recording)
             }
@@ -36,7 +39,7 @@ struct RecordOrb: View {
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(Theme.textSecondary(for: colorScheme))
 
-            Text(phase == .recording ? "Click to stop" : "⌘R")
+            Text(phase == .recording ? "Click to stop" : "⌘N")
                 .font(.system(size: 11))
                 .foregroundStyle(Theme.textTertiary(for: colorScheme))
         }

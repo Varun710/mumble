@@ -1,154 +1,126 @@
 # Mumble
 
-A local-first macOS dictation and transcription app. Everything runs on-device with
-[WhisperKit](https://github.com/argmaxinc/argmax-oss-swift) — no account, no cloud, no audio ever leaves your Mac.
+A local-first macOS app for voice transcription and dictation. Everything runs on your Mac with [WhisperKit](https://github.com/argmaxinc/argmax-oss-swift) — no account, no cloud, no audio ever leaves your device.
 
-Mumble is two things in one:
+<p align="center">
+  <img src="docs/light-mode.png" alt="Mumble home screen in light mode" width="49%" />
+  <img src="docs/dark-mode.png" alt="Mumble home screen in dark mode" width="49%" />
+</p>
 
-- A **windowed transcription manager**: record, get a cleaned transcript with timestamped
-  segments, play it back with a synced playhead, search your library, and keep notes.
-- A **global push-to-talk dictation tool**: hold a hotkey anywhere, speak, release, and the
-  cleaned text is pasted straight into whatever app you're using.
+## What it does
 
-![Flow](docs/screenshot.png)
+Mumble combines two workflows in one app:
 
-## Features
+**1. Push-to-talk dictation** — Hold **Right Option (⌥)** anywhere on your Mac, speak, and release. Mumble transcribes your speech, cleans it up, and pastes the result into whatever app you're using.
 
-- On-device speech-to-text via WhisperKit (downloads the model on first use).
-- Window recording with a record orb, live waveform, and automatic transcription.
-- Global push-to-talk dictation with a floating overlay capsule — hold the **Right Option (⌥)** key.
-- Menu-bar control: click the menu-bar icon → **Start/Stop Dictation** to dictate hands-free
-  on top of any app and paste at the cursor (no window required).
-- Deterministic text cleanup: filler-word removal (`um`, `uh`, …), repeated-word collapsing,
-  spacing/punctuation normalization, and a custom dictionary.
-- Transcript player: waveform scrubbing, tap-a-segment to seek, current-segment highlight,
-  variable playback speed, per-recording notes.
-- Local library stored with SwiftData; audio + database + models live under
-  `~/Library/Application Support/com.mumble.app/`.
-- Menu-bar presence with a runtime Dock-icon toggle (background agent when no window is open).
-- AI Commands panel (Summarize / Action Items / …) is present but disabled — reserved for a
-  future local-LLM phase.
+**2. Recording library** — Record from the app window, get a timestamped transcript with synced playback, search your library, and keep notes. Dictations and recordings are saved automatically.
 
-## Requirements
-
-- macOS 14 or later (built and tested on macOS 26).
-- Xcode 16 or later (developed with Xcode 26.6).
-- [XcodeGen](https://github.com/yonaskolb/XcodeGen) to generate the Xcode project:
-  `brew install xcodegen`.
-
-## Build & run
-
-The Xcode project is generated from [`project.yml`](project.yml) and is not committed.
-
-```bash
-# 1. Generate the Xcode project
-xcodegen generate
-
-# 2a. Open in Xcode and run (recommended)
-open Mumble.xcodeproj
-#    then press Cmd+R
-
-# 2b. …or build from the command line
-xcodebuild -project Mumble.xcodeproj -scheme Mumble \
-  -configuration Debug -destination 'platform=macOS' \
-  CODE_SIGN_IDENTITY="-" build
-```
-
-If `xcodebuild` reports it can't find Xcode, point it at your full Xcode install:
-
-```bash
-sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
-# or prefix one-off commands with:
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild ...
-```
-
-## Install to /Applications
-
-To run Mumble as a normal installed app (not just from Xcode):
+## Quick start
 
 ```bash
 ./scripts/install.sh
 ```
 
-This generates the project, builds **Release**, ad-hoc signs it (no Apple Developer account
-needed), copies `Mumble.app` to `/Applications`, clears the Gatekeeper quarantine flag, and
-launches it. From then on Mumble lives in your Applications folder and the menu bar.
+This builds a Release app, signs it, copies `Mumble.app` to `/Applications`, and launches it. Mumble lives in the menu bar.
 
-> Because the app is ad-hoc signed, macOS ties Accessibility / Input Monitoring grants to the
-> build's signature. If you re-run the installer after code changes, you may need to re-grant
-> those once in System Settings.
+On first launch, onboarding walks you through:
 
-Alternatively, in Xcode: **Product → Archive → Distribute App → Custom → Copy App**, or just
-build and drag `Mumble.app` from the Products group into `/Applications`.
+1. **Permissions** — Microphone, Accessibility (for pasting), and Input Monitoring (for the global hotkey).
+2. **Model download** — Pick a Whisper model. **Base** (~145 MB) is the fast default; **Large v3 Turbo** is the most accurate on Apple Silicon.
 
-## Using it from the menu bar
+After setup, hold **Right Option (⌥)** to dictate, or open the main window from the menu bar to browse recordings.
 
-Mumble runs as a menu-bar app. Hold the **Right Option (⌥)** key anywhere, speak, then release —
-the cleaned text is pasted into whatever app and text field has focus. You can also click the
-menu-bar icon and choose **Start / Stop Dictation** for a hands-free toggle.
+## Features
 
-The Right Option hotkey requires **Input Monitoring** permission; pasting requires
-**Accessibility**. Both are requested during onboarding.
+| Area | What you get |
+| --- | --- |
+| **Dictation** | Global push-to-talk with a floating overlay; paste cleaned text into any app |
+| **Recording** | Record orb, live waveform, automatic transcription |
+| **Transcripts** | Timestamped segments, waveform scrubbing, tap-to-seek, variable playback speed |
+| **Cleanup** | Filler-word removal, repeated-word collapsing, punctuation normalization, custom dictionary |
+| **Library** | SwiftData storage for recordings, dictations, and notes — all local under `~/Library/Application Support/com.mumble.app/` |
+| **Menu bar** | Always available; toggle dictation or open the main window without a Dock icon |
+| **Appearance** | Light and dark mode |
 
-## First run
+AI Commands (Summarize, Action Items, etc.) are in the UI but disabled — reserved for a future local-LLM phase.
 
-On first launch, an onboarding flow walks you through granting permissions and downloading a
-speech model (you can download several at once, each with its own progress). **Base** (~145 MB)
-is the quick default; **Large v3 Turbo** is the most accurate on Apple Silicon. Mumble won't
-record until at least one model is downloaded, and it tells you if a selected model is missing.
-Pick a different model in **Settings → Models** — `Large v3 Turbo` is recommended for the best
-accuracy/speed on Apple Silicon.
+## Using Mumble
+
+### Dictate from anywhere
+
+Hold **Right Option (⌥)** → speak → release. The cleaned text is pasted at your cursor.
+
+You can also click the menu-bar icon and choose **Start / Stop Dictation** for a hands-free toggle.
+
+### Record from the app
+
+Click **New Recording** in the sidebar (or press **⌘N**), speak, and stop when done. Mumble transcribes automatically and adds the recording to your library.
+
+### Change the model
+
+Open **Settings → Models**. Download additional models anytime; each shows its own progress. `Large v3 Turbo` is recommended for best accuracy on Apple Silicon.
 
 ## Permissions
 
-Mumble asks for three macOS permissions (manage them in **Settings → Permissions**):
+| Permission | Why |
+| --- | --- |
+| **Microphone** | Record audio to transcribe |
+| **Accessibility** | Paste dictated text into other apps (synthesized ⌘V) |
+| **Input Monitoring** | Detect the global Right Option hotkey |
 
-| Permission | Why | Where |
-| --- | --- | --- |
-| **Microphone** | Record audio to transcribe | prompted in-app |
-| **Accessibility** | Paste dictated text into other apps (synthesized `⌘V`) | System Settings → Privacy & Security → Accessibility |
-| **Input Monitoring** | Global push-to-talk hotkey | System Settings → Privacy & Security → Input Monitoring |
+Manage these in **Settings → Permissions** or System Settings → Privacy & Security.
 
-> Accessibility/Input-Monitoring grants are tied to the signed binary at a specific path.
-> If you move the app or rebuild with a different signature, re-grant the permission.
+> Grants are tied to the signed binary at a specific path. If you rebuild or move the app, you may need to re-grant Accessibility and Input Monitoring.
+
+## Build from source
+
+Requires macOS 14+, Xcode 16+, and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`). The Xcode project is generated from [`project.yml`](project.yml) and is not committed.
+
+```bash
+xcodegen generate
+open Mumble.xcodeproj   # then Cmd+R
+```
+
+Or build from the command line:
+
+```bash
+xcodebuild -project Mumble.xcodeproj -scheme Mumble \
+  -configuration Debug -destination 'platform=macOS' \
+  CODE_SIGN_IDENTITY="-" build
+```
+
+If `xcodebuild` can't find Xcode:
+
+```bash
+sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+```
 
 ## Why it's not sandboxed
 
-Pasting into arbitrary apps uses `CGEvent.post` to synthesize `⌘V`, which is **blocked by the
-App Sandbox with no entitlement workaround**. Mumble therefore ships **non-sandboxed**
-(Developer ID + Hardened Runtime + notarization for distribution). This is standard for
-dictation utilities and rules out Mac App Store distribution.
-
-## Running an unsigned release
-
-If you distribute an unsigned `.zip`/`.dmg` (no Apple Developer account), Gatekeeper will warn
-on first open. Users can bypass it with:
-
-- **Right-click the app → Open → Open**, or
-- `xattr -dr com.apple.quarantine /Applications/Mumble.app`
+Pasting into arbitrary apps uses `CGEvent.post` to synthesize ⌘V, which App Sandbox blocks with no workaround. Mumble ships non-sandboxed (Hardened Runtime; Developer ID + notarization for distribution). This is standard for dictation utilities and rules out Mac App Store distribution.
 
 ## Project structure
 
 ```
 Mumble/
-├─ App/            App entry, delegate, environment, Dock activation policy
-├─ Permissions/    Microphone / Accessibility / Input Monitoring
-├─ Audio/          AudioPipeline (actor), RecorderViewModel, WaveformAnalyzer
-├─ Transcription/  TranscriptionEngine protocol, WhisperKitEngine, ModelManager, service
-├─ Polish/         TextCleaner pipeline (fillers, repeats, punctuation, dictionary)
-├─ Output/         Clipboard + paste (CGEvent ⌘V)
-├─ Dictation/      Push-to-talk controller + floating NSPanel overlay
-├─ Storage/        SwiftData models, persistence, paths, settings
-└─ UI/             Sidebar, Home, Recordings (+ transcript player), Notes, Settings, components
+├─ App/            Entry point, delegate, environment, menu bar
+├─ Dictation/      Push-to-talk controller + floating overlay
+├─ Audio/          Recording pipeline, waveform analysis
+├─ Transcription/  WhisperKit engine, model manager
+├─ Polish/         Text cleanup (fillers, punctuation, dictionary)
+├─ Output/         Clipboard + paste
+├─ Storage/        SwiftData models, settings, paths
+├─ Permissions/    Microphone, Accessibility, Input Monitoring
+└─ UI/             Home, Recordings, Notes, Settings
 ```
 
 ## Roadmap
 
-- Local-LLM AI Commands (Summarize, Action Items, Decisions, Notes, custom prompts).
-- Additional engines behind `TranscriptionEngine` (Parakeet, Apple Speech).
-- Streaming/partial transcripts during dictation.
-- Signed + notarized releases and Sparkle auto-update.
+- Local-LLM AI Commands (Summarize, Action Items, Decisions, Notes)
+- Additional engines behind `TranscriptionEngine` (Parakeet, Apple Speech)
+- Streaming/partial transcripts during dictation
+- Signed + notarized releases and Sparkle auto-update
 
 ## License
 
-Source-available for personal use. WhisperKit and KeyboardShortcuts retain their own licenses.
+Source-available for personal use. WhisperKit retains its own license.

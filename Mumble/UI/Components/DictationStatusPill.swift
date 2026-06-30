@@ -30,12 +30,14 @@ struct DictationStatusPill: View {
             }
             .frame(minWidth: Self.textMinWidth, alignment: .leading)
 
-            Text("Local only")
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(Theme.textSecondary(for: colorScheme))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Theme.cardBackground(for: colorScheme), in: Capsule())
+            if !forOverlay {
+                Text("Local only")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Theme.textSecondary(for: colorScheme))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Theme.cardBackground(for: colorScheme), in: Capsule())
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
@@ -130,7 +132,7 @@ struct DictationPillChrome: ViewModifier {
             )
 
         if forOverlay {
-            bordered
+            content
         } else {
             bordered
                 .shadow(color: Theme.accent.opacity(0.12), radius: 14, y: 6)

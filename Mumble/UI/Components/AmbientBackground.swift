@@ -17,24 +17,30 @@ struct AmbientBackground: View {
 
     private var darkBackground: some View {
         ZStack {
-            Color(hex: 0x0A0A12)
+            Color(hex: 0x070711)
             RadialGradient(
-                colors: [Color(hex: 0x3D2B8E).opacity(0.55), .clear],
-                center: .init(x: 0.15, y: 0.2),
+                colors: [Color(hex: 0x5B3DD6).opacity(0.48), .clear],
+                center: .init(x: 0.13, y: 0.18),
+                startRadius: 0,
+                endRadius: 460
+            )
+            RadialGradient(
+                colors: [Color(hex: 0x20125F).opacity(0.70), .clear],
+                center: .init(x: 0.78, y: 0.18),
                 startRadius: 0,
                 endRadius: 420
             )
             RadialGradient(
-                colors: [Color(hex: 0x1E3A6E).opacity(0.45), .clear],
-                center: .init(x: 0.85, y: 0.75),
+                colors: [Color(hex: 0x162D68).opacity(0.35), .clear],
+                center: .init(x: 0.84, y: 0.82),
                 startRadius: 0,
                 endRadius: 380
             )
             RadialGradient(
-                colors: [Color(hex: 0x5C3D7A).opacity(0.35), .clear],
-                center: .init(x: 0.55, y: 0.45),
+                colors: [Color(hex: 0x8A4DFF).opacity(0.18), .clear],
+                center: .init(x: 0.56, y: 0.48),
                 startRadius: 0,
-                endRadius: 320
+                endRadius: 300
             )
         }
     }

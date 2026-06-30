@@ -3,10 +3,10 @@ import SwiftUI
 /// Centralized theme with light/dark adaptive tokens and liquid glass surfaces.
 enum Theme {
     // Accent (shared across appearances)
-    static let accent = Color(hex: 0x9474F3)
-    static let accentSoft = Color(hex: 0x6E5BE0)
+    static let accent = Color(hex: 0x8F6DFF)
+    static let accentSoft = Color(hex: 0x5F46D8)
     static let accentGradient = LinearGradient(
-        colors: [Color(hex: 0xA98BFF), Color(hex: 0x6E5BE0)],
+        colors: [Color(hex: 0xB79BFF), Color(hex: 0x6A4FF2)],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
@@ -14,7 +14,7 @@ enum Theme {
     // States (shared)
     static let recording = Color(hex: 0xF3576B)
     static let success = Color(hex: 0x4FCB7A)
-    static let selection = Color(hex: 0x6E5BE0).opacity(0.22)
+    static let selection = Color(hex: 0x7D5CFF).opacity(0.22)
 
     static let cornerRadius: CGFloat = 16
 
@@ -28,48 +28,48 @@ enum Theme {
     // MARK: - Adaptive tokens
 
     static func textPrimary(for scheme: ColorScheme) -> Color {
-        scheme == .dark ? Color(hex: 0xF2F2F7) : Color(hex: 0x1A1A2E)
+        scheme == .dark ? Color(hex: 0xF5F2FF) : Color(hex: 0x1A1A2E)
     }
 
     static func textSecondary(for scheme: ColorScheme) -> Color {
-        scheme == .dark ? Color(hex: 0x9A9AA8) : Color(hex: 0x5C5C6E)
+        scheme == .dark ? Color(hex: 0xB4AEC8) : Color(hex: 0x5C5C6E)
     }
 
     static func textTertiary(for scheme: ColorScheme) -> Color {
-        scheme == .dark ? Color(hex: 0x6B6B78) : Color(hex: 0x8E8E9A)
+        scheme == .dark ? Color(hex: 0x7C758F) : Color(hex: 0x8E8E9A)
     }
 
     static func cardBackground(for scheme: ColorScheme) -> Color {
         scheme == .dark
-            ? Color.white.opacity(0.06)
+            ? Color.white.opacity(0.075)
             : Color.white.opacity(0.55)
     }
 
     static func separator(for scheme: ColorScheme) -> Color {
         scheme == .dark
-            ? Color.white.opacity(0.08)
+            ? Color.white.opacity(0.10)
             : Color.white.opacity(0.65)
     }
 
     static func glassEdge(for scheme: ColorScheme) -> Color {
         scheme == .dark
-            ? Color.white.opacity(0.10)
+            ? Color.white.opacity(0.13)
             : Color.white.opacity(0.55)
     }
 
     static func hover(for scheme: ColorScheme) -> Color {
         scheme == .dark
-            ? Color.white.opacity(0.04)
+            ? Color.white.opacity(0.065)
             : Color.black.opacity(0.03)
     }
 
     // Static aliases for views not yet migrated to adaptive tokens
-    static let textPrimary = Color(hex: 0xF2F2F7)
-    static let textSecondary = Color(hex: 0x9A9AA8)
-    static let textTertiary = Color(hex: 0x6B6B78)
+    static let textPrimary = Color(hex: 0xF5F2FF)
+    static let textSecondary = Color(hex: 0xB4AEC8)
+    static let textTertiary = Color(hex: 0x7C758F)
     static let cardBackground = cardBackgroundDark
-    static let separator = Color.white.opacity(0.06)
-    static let hover = Color.white.opacity(0.04)
+    static let separator = Color.white.opacity(0.10)
+    static let hover = Color.white.opacity(0.065)
 }
 
 // MARK: - Dictation hotkey copy

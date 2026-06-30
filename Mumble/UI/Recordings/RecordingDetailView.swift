@@ -1,8 +1,10 @@
+import AppKit
 import SwiftUI
 import SwiftData
 
 struct RecordingDetailView: View {
     let recordingID: UUID
+    let returnRoute: SidebarItem
     @Binding var selection: SidebarItem
     @Environment(\.modelContext) private var context
     @Environment(\.colorScheme) private var colorScheme
@@ -10,9 +12,13 @@ struct RecordingDetailView: View {
     @State private var player = TranscriptPlayer()
     @State private var isEditingTitle = false
     @State private var draftTitle = ""
+    @State private var isConfirmingDelete = false
+    @State private var deletionError: String?
+    @State private var isBackHovering = false
 
-    init(recordingID: UUID, selection: Binding<SidebarItem>) {
+    init(recordingID: UUID, selection: Binding<SidebarItem>, returnRoute: SidebarItem = .recordings) {
         self.recordingID = recordingID
+        self.returnRoute = returnRoute
         self._selection = selection
         _recordings = Query(filter: #Predicate<Recording> { $0.id == recordingID })
     }
@@ -28,8 +34,28 @@ struct RecordingDetailView: View {
             }
         }
         .onAppear { player.load(url: recording?.audioURL) }
-        .onChange(of: recordingID) { _, _ in player.load(url: recording?.audioURL) }
+        .onChange(of: recordingID) { _, _ in
+            player.load(url: recording?.audioURL)
+            isEditingTitle = false
+            draftTitle = ""
+        }
         .onDisappear { player.stop() }
+        .confirmationDialog("Delete this recording?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
+            Button("Delete Recording", role: .destructive) {
+                if let recording { delete(recording) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes the transcript, notes, and local audio file from this Mac.")
+        }
+        .alert("Couldn't delete recording", isPresented: Binding(
+            get: { deletionError != nil },
+            set: { if !$0 { deletionError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(deletionError ?? "")
+        }
     }
 
     private func content(_ recording: Recording) -> some View {
@@ -50,16 +76,22 @@ struct RecordingDetailView: View {
 
     private func headerBar(_ recording: Recording) -> some View {
         HStack(spacing: 12) {
-            Button { selection = .recordings } label: {
+            Button { goBack() } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 12, weight: .semibold))
-                    Text("Recordings")
+                    Text(returnRouteTitle)
                         .font(.system(size: 13, weight: .medium))
                 }
                 .foregroundStyle(Theme.accent)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 6)
+                .background(isBackHovering ? Theme.hover(for: colorScheme) : Color.clear, in: Capsule())
             }
             .buttonStyle(.plain)
+            .help("Back to \(returnRouteTitle.lowercased())")
+            .onHover { isBackHovering = $0 }
+            .animation(.easeInOut(duration: 0.14), value: isBackHovering)
 
             VStack(alignment: .leading, spacing: 3) {
                 if isEditingTitle {
@@ -90,7 +122,7 @@ struct RecordingDetailView: View {
             .foregroundStyle(Theme.textSecondary(for: colorScheme))
             .help("Copy transcript")
 
-            Button(role: .destructive) { delete(recording) } label: {
+            Button(role: .destructive) { isConfirmingDelete = true } label: {
                 Image(systemName: "trash")
             }
             .buttonStyle(.plain)
@@ -139,17 +171,35 @@ struct RecordingDetailView: View {
             .buttonStyle(.plain)
             .disabled(!player.hasAudio)
 
-            Menu {
-                ForEach([0.75, 1.0, 1.25, 1.5, 2.0], id: \.self) { r in
-                    Button("\(rateLabel(r))×") { player.rate = Float(r) }
-                }
-            } label: {
+            BelowDropdown(minWidth: 78) {
                 Text("\(rateLabel(Double(player.rate)))×")
                     .font(.system(size: 12, weight: .medium))
-                    .frame(width: 42)
+                    .frame(width: 34)
+            } content: { dismiss in
+                ForEach([0.75, 1.0, 1.25, 1.5, 2.0], id: \.self) { r in
+                    Button {
+                        player.rate = Float(r)
+                        dismiss()
+                    } label: {
+                        HStack {
+                            Text("\(rateLabel(r))×")
+                            Spacer()
+                            if Float(r) == player.rate {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(Theme.accent)
+                            }
+                        }
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Theme.textPrimary(for: colorScheme))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(Float(r) == player.rate ? Theme.selection : Color.clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
             }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
             .disabled(!player.hasAudio)
 
             Button { player.skip(by: -10) } label: { Image(systemName: "gobackward.10") }
@@ -223,15 +273,13 @@ struct RecordingDetailView: View {
             Text("Notes")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(Theme.textSecondary(for: colorScheme))
-            TextEditor(text: Binding(
+            FocusedNotesEditor(text: Binding(
                 get: { recording.notes },
                 set: { recording.notes = $0; try? context.save() }
-            ))
-            .font(.system(size: 13))
-            .scrollContentBackground(.hidden)
-            .padding(10)
-            .frame(minHeight: 90)
-            .background(Theme.cardBackground(for: colorScheme), in: RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous))
+            ), colorScheme: colorScheme)
+            .id(recordingID)
+            .frame(minHeight: 128)
+            .contentCard(padding: 0, cornerRadius: Theme.cornerRadius)
             .overlay(alignment: .topLeading) {
                 if recording.notes.isEmpty {
                     Text("Add a note…")
@@ -248,7 +296,7 @@ struct RecordingDetailView: View {
         VStack(spacing: 10) {
             Image(systemName: "questionmark.folder").font(.system(size: 36)).foregroundStyle(Theme.textTertiary(for: colorScheme))
             Text("Recording not found").foregroundStyle(Theme.textSecondary(for: colorScheme))
-            Button("Back to recordings") { selection = .recordings }.buttonStyle(.plain).foregroundStyle(Theme.accent)
+            Button("Back to \(returnRouteTitle.lowercased())") { goBack() }.buttonStyle(.plain).foregroundStyle(Theme.accent)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -270,13 +318,109 @@ struct RecordingDetailView: View {
 
     private func delete(_ recording: Recording) {
         player.stop()
-        if let url = recording.audioURL { try? FileManager.default.removeItem(at: url) }
-        context.delete(recording)
-        try? context.save()
-        selection = .recordings
+        do {
+            try RecordingDeletion.delete(recording, in: context)
+            goBack()
+        } catch {
+            deletionError = error.localizedDescription
+        }
+    }
+
+    private func goBack() {
+        selection = returnRoute
+    }
+
+    private var returnRouteTitle: String {
+        switch returnRoute {
+        case .home: return "Home"
+        case .notes: return "Notes"
+        case .settings, .recordings, .recording: return "Recordings"
+        }
     }
 
     private func durationLabel(_ d: TimeInterval) -> String { String(format: "%01d:%02d", Int(d) / 60, Int(d) % 60) }
     private func timeLabel(_ d: TimeInterval) -> String { String(format: "%02d:%02d", Int(d) / 60, Int(d) % 60) }
     private func rateLabel(_ r: Double) -> String { r == floor(r) ? String(format: "%.0f", r) : String(format: "%.2g", r) }
+}
+
+private struct FocusedNotesEditor: NSViewRepresentable {
+    @Binding var text: String
+    let colorScheme: ColorScheme
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text)
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.drawsBackground = false
+        scrollView.hasVerticalScroller = true
+        scrollView.borderType = .noBorder
+
+        let textView = NSTextView()
+        textView.delegate = context.coordinator
+        textView.string = text
+        textView.isRichText = false
+        textView.importsGraphics = false
+        textView.allowsUndo = true
+        textView.drawsBackground = false
+        textView.textContainerInset = NSSize(width: 10, height: 10)
+        textView.autoresizingMask = [.width]
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.textContainer?.widthTracksTextView = true
+        scrollView.documentView = textView
+        context.coordinator.textView = textView
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        guard let textView = scrollView.documentView as? NSTextView else { return }
+        context.coordinator.text = $text
+        if textView.string != text {
+            textView.string = text
+        }
+        textView.font = .systemFont(ofSize: 13)
+        textView.textColor = textColor
+        textView.insertionPointColor = accentColor
+
+        guard !context.coordinator.didFocusAtEnd else { return }
+        DispatchQueue.main.async {
+            guard !context.coordinator.didFocusAtEnd else { return }
+            guard let window = textView.window else { return }
+            if let firstResponder = window.firstResponder,
+               firstResponder !== textView,
+               firstResponder is NSTextView {
+                return
+            }
+            window.makeFirstResponder(textView)
+            textView.setSelectedRange(NSRange(location: textView.string.utf16.count, length: 0))
+            context.coordinator.didFocusAtEnd = true
+        }
+    }
+
+    private var textColor: NSColor {
+        colorScheme == .dark
+            ? NSColor(calibratedRed: 245 / 255, green: 242 / 255, blue: 255 / 255, alpha: 1)
+            : NSColor(calibratedRed: 26 / 255, green: 26 / 255, blue: 46 / 255, alpha: 1)
+    }
+
+    private var accentColor: NSColor {
+        NSColor(calibratedRed: 143 / 255, green: 109 / 255, blue: 255 / 255, alpha: 1)
+    }
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        var text: Binding<String>
+        weak var textView: NSTextView?
+        var didFocusAtEnd = false
+
+        init(text: Binding<String>) {
+            self.text = text
+        }
+
+        func textDidChange(_ notification: Notification) {
+            guard let textView = notification.object as? NSTextView else { return }
+            text.wrappedValue = textView.string
+        }
+    }
 }

@@ -46,25 +46,35 @@ struct RecordingPanel: View {
                 .foregroundStyle(Theme.textSecondary(for: colorScheme))
 
             settingRow("Language") {
-                Picker("", selection: Binding(get: { settings.language }, set: { settings.language = $0 })) {
-                    ForEach(LanguageOption.all) { option in
-                        Text(option.name).tag(option.code)
-                    }
+                BelowDropdownPicker(
+                    selection: Binding(get: { settings.language }, set: { settings.language = $0 }),
+                    values: LanguageOption.all.map(\.code),
+                    minWidth: 168
+                ) { code in
+                    Text(LanguageOption.name(for: code))
+                        .font(.system(size: 12, weight: .medium))
+                } rowContent: { code, _ in
+                    Text(LanguageOption.name(for: code))
                 }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .fixedSize()
             }
 
             settingRow("Model") {
-                Picker("", selection: Binding(get: { settings.modelName }, set: { settings.modelName = $0 })) {
-                    ForEach(ModelManager.catalog) { model in
-                        Text(model.displayName).tag(model.name)
+                BelowDropdownPicker(
+                    selection: Binding(get: { settings.modelName }, set: { settings.modelName = $0 }),
+                    values: ModelManager.catalog.map(\.name),
+                    minWidth: 210
+                ) { name in
+                    Text(env.modelManager.displayName(for: name))
+                        .font(.system(size: 12, weight: .medium))
+                } rowContent: { name, _ in
+                    let state = env.modelManager.state(for: name)
+                    HStack {
+                        Text(env.modelManager.displayName(for: name))
+                        Text(modelStatus(for: state))
+                            .font(.system(size: 11))
+                            .foregroundStyle(modelStatusColor(for: state))
                     }
                 }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .fixedSize()
             }
 
             if !env.modelManager.isReady(settings.modelName) {
@@ -110,6 +120,22 @@ struct RecordingPanel: View {
                 .foregroundStyle(Theme.textSecondary(for: colorScheme))
             Spacer()
             content()
+        }
+    }
+
+    private func modelStatus(for state: ModelDownloadState) -> String {
+        switch state {
+        case .ready: return ""
+        case .notDownloaded: return "Not downloaded"
+        case .downloading(let progress): return "\(Int(progress * 100))%"
+        case .failed: return "Download failed"
+        }
+    }
+
+    private func modelStatusColor(for state: ModelDownloadState) -> Color {
+        switch state {
+        case .ready, .downloading: return Theme.textPrimary(for: colorScheme)
+        case .notDownloaded, .failed: return Theme.recording
         }
     }
 }
