@@ -14,6 +14,7 @@ final class MenuBarController {
     private var observationTask: Task<Void, Never>?
     private weak var env: AppEnvironment?
     private var isPulsing = false
+    private var lastMenuSnapshot: MenuSnapshot?
 
     func install(env: AppEnvironment) {
         self.env = env
@@ -47,13 +48,20 @@ final class MenuBarController {
                 withObservationTracking {
                     _ = env.showsMenuBarActivity
                     _ = env.dictation.isActive
+                    _ = env.overlay.model.phase
+                    _ = env.recorder.isProcessing
                 } onChange: { }
 
                 let busy = env.showsMenuBarActivity
                 if busy != self.isPulsing {
                     if busy { self.startPulse() } else { self.stopPulse() }
                 }
-                self.updateMenu()
+
+                let snapshot = MenuSnapshot(env: env)
+                if snapshot != self.lastMenuSnapshot {
+                    self.lastMenuSnapshot = snapshot
+                    self.updateMenu()
+                }
 
                 try? await Task.sleep(for: .milliseconds(120))
             }
@@ -175,5 +183,27 @@ final class MenuBarController {
         NotificationCenter.default.post(name: .mumbleQuit, object: nil)
         env?.shutdown()
         NSApp.terminate(nil)
+    }
+}
+
+private struct MenuSnapshot: Equatable {
+    let dictationActive: Bool
+    let overlayPhase: OverlayModel.Phase
+    let recorderProcessing: Bool
+    let statusHint: String
+
+    init(env: AppEnvironment) {
+        dictationActive = env.dictation.isActive
+        overlayPhase = env.overlay.model.phase
+        recorderProcessing = env.recorder.isProcessing
+        if env.dictation.isActive {
+            statusHint = "listening"
+        } else if env.showsMenuBarActivity {
+            statusHint = "working"
+        } else if env.dictation.isMonitoring {
+            statusHint = "monitoring"
+        } else {
+            statusHint = "disabled"
+        }
     }
 }

@@ -33,7 +33,7 @@ struct OnboardingView: View {
 
     private var header: some View {
         VStack(spacing: 12) {
-            Image("Wordmark").resizable().scaledToFit().frame(height: 26)
+            Image("Wordmark").resizable().scaledToFit().frame(height: 44)
             HStack(spacing: 8) {
                 ForEach(steps.indices, id: \.self) { i in
                     Capsule()

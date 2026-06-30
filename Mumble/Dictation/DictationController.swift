@@ -17,13 +17,13 @@ final class DictationController {
     private let monitor = RightOptionMonitor()
 
     private var pipeline: AudioPipeline?
-    private var levelTask: Task<Void, Never>?
-    private var timer: Timer?
     private var startedAt: Date?
     private var currentID = UUID()
     private var currentFileURL: URL?
     private(set) var isActive = false
     private(set) var hotkeyActive = false
+    /// True while the Right Option key is physically held down.
+    private(set) var isHotkeyPressed = false
     private var hideWorkItem: DispatchWorkItem?
 
     init(transcription: TranscriptionService, settings: SettingsStore, permissions: PermissionsService, overlay: OverlayController, container: ModelContainer) {
@@ -41,8 +41,18 @@ final class DictationController {
     /// Returns false if Input Monitoring permission is missing.
     @discardableResult
     func startMonitoring() -> Bool {
-        monitor.onPress = { [weak self] in Task { await self?.begin() } }
-        monitor.onRelease = { [weak self] in Task { await self?.finish() } }
+        monitor.onPress = { [weak self] in
+            Task { @MainActor in
+                self?.isHotkeyPressed = true
+                await self?.begin()
+            }
+        }
+        monitor.onRelease = { [weak self] in
+            Task { @MainActor in
+                await self?.finish()
+                self?.isHotkeyPressed = false
+            }
+        }
         hotkeyActive = monitor.start()
         return hotkeyActive
     }
@@ -60,12 +70,11 @@ final class DictationController {
     /// Stops the global hotkey monitor and hides the overlay.
     func shutdown() {
         hideWorkItem?.cancel()
-        stopTimer()
-        levelTask?.cancel()
         monitor.stop()
         overlay.hide()
         isActive = false
         hotkeyActive = false
+        isHotkeyPressed = false
         pipeline = nil
     }
 
@@ -73,6 +82,7 @@ final class DictationController {
         guard !isActive else { return }
         isActive = true
         hideWorkItem?.cancel()
+        AppLog.dictation.info("begin")
 
         guard transcription.isModelDownloaded(settings.modelName) else {
             showError("No speech model yet. Open Mumble ▸ Settings ▸ Models to download one.", hideAfter: 4)
@@ -95,15 +105,13 @@ final class DictationController {
         self.pipeline = pipeline
 
         overlay.model.phase = .listening
-        overlay.model.levels = []
-        overlay.model.elapsed = 0
         overlay.model.modelName = settings.modelName
         overlay.setAppearance(settings.appearance)
 
-        let stream = await pipeline.levelStream()
         do {
             try await pipeline.start(recordingTo: url)
         } catch {
+            AppLog.dictation.error("audio start failed: \(error.localizedDescription, privacy: .public)")
             showError(error.localizedDescription, hideAfter: 2.5)
             self.pipeline = nil
             isActive = false
@@ -112,24 +120,12 @@ final class DictationController {
 
         overlay.show()
         startedAt = Date()
-        startTimer()
-        levelTask = Task { [weak self] in
-            for await level in stream {
-                guard let self else { return }
-                var levels = self.overlay.model.levels
-                levels.append(level)
-                if levels.count > 60 { levels.removeFirst(levels.count - 60) }
-                self.overlay.model.levels = levels
-            }
-        }
     }
 
     private func finish() async {
         guard isActive, let pipeline else { return }
         isActive = false
-        stopTimer()
-        levelTask?.cancel()
-        levelTask = nil
+        AppLog.dictation.info("finish")
 
         overlay.model.phase = .transcribing
         await pipeline.stop()
@@ -161,7 +157,9 @@ final class DictationController {
             overlay.show()
             scheduleHide(after: 0.9)
             save(duration: duration, output: output, cleaned: cleaned, model: model, language: language)
+            AppLog.dictation.info("finish success duration=\(duration, privacy: .public)s")
         } catch {
+            AppLog.dictation.error("transcription failed: \(error.localizedDescription, privacy: .public)")
             showError(error.localizedDescription, hideAfter: 2.5)
         }
     }
@@ -206,6 +204,7 @@ final class DictationController {
     // MARK: - Overlay helpers
 
     private func showError(_ message: String, hideAfter: TimeInterval) {
+        AppLog.dictation.error("error: \(message, privacy: .public)")
         overlay.model.phase = .error
         overlay.model.message = message
         overlay.show()
@@ -217,20 +216,5 @@ final class DictationController {
         let item = DispatchWorkItem { [weak self] in self?.overlay.hide() }
         hideWorkItem = item
         DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: item)
-    }
-
-    private func startTimer() {
-        timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                guard let self, let started = self.startedAt else { return }
-                self.overlay.model.elapsed = Date().timeIntervalSince(started)
-            }
-        }
-    }
-
-    private func stopTimer() {
-        timer?.invalidate()
-        timer = nil
     }
 }

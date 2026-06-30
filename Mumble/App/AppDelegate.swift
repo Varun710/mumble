@@ -1,11 +1,25 @@
 import AppKit
 
+#if DEBUG
+private func installUncaughtExceptionLogger() {
+    NSSetUncaughtExceptionHandler { exception in
+        AppLog.lifecycle.fault(
+            "uncaught NSException name=\(exception.name.rawValue, privacy: .public) reason=\(exception.reason ?? "nil", privacy: .public)"
+        )
+    }
+}
+#endif
+
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let env = AppEnvironment()
     private var didBootstrap = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        #if DEBUG
+        installUncaughtExceptionLogger()
+        #endif
+        AppLog.lifecycle.info("applicationDidFinishLaunching")
         bootstrapIfNeeded()
 
         let center = NotificationCenter.default
@@ -33,6 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        AppLog.lifecycle.info("applicationWillTerminate")
         env.shutdown()
     }
 

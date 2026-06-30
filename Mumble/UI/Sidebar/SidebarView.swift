@@ -25,7 +25,7 @@ struct SidebarView: View {
             Image("Wordmark")
                 .resizable()
                 .scaledToFit()
-                .frame(height: 22)
+                .frame(height: 38)
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 16)

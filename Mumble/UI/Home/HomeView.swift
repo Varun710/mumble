@@ -6,6 +6,14 @@ struct HomeView: View {
     @Environment(AppEnvironment.self) private var env
     @Environment(\.colorScheme) private var colorScheme
     @Query(sort: \Recording.createdAt, order: .reverse) private var recordings: [Recording]
+    @State private var isHoveringHero = false
+    @State private var isHoveringPill = false
+
+    private var showsStatusPill: Bool {
+        env.dictation.isMonitoring
+            && !env.dictation.isActive
+            && (isHoveringHero || isHoveringPill || env.dictation.isHotkeyPressed)
+    }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -21,11 +29,14 @@ struct HomeView: View {
                 .padding(.bottom, 72)
             }
 
-            if env.dictation.isMonitoring && !env.dictation.isActive {
-                statusPill
+            if showsStatusPill {
+                DictationStatusPill()
+                    .onHover { isHoveringPill = $0 }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                     .padding(.bottom, 20)
             }
         }
+        .animation(.spring(response: 0.32, dampingFraction: 0.82), value: showsStatusPill)
     }
 
     private var header: some View {
@@ -66,43 +77,16 @@ struct HomeView: View {
             }
         }
         .contentCard(padding: 24, cornerRadius: 20)
-    }
-
-    private var statusPill: some View {
-        HStack(spacing: 14) {
-            ZStack {
-                Circle()
-                    .fill(Theme.accentGradient)
-                    .frame(width: 38, height: 38)
-                    .shadow(color: Theme.accent.opacity(0.4), radius: 8)
-                Image(systemName: "mic.fill")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(.white)
+        .onHover { hovering in
+            if hovering {
+                isHoveringHero = true
+            } else {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(180))
+                    if !isHoveringPill { isHoveringHero = false }
+                }
             }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Ready for push-to-talk")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Theme.textPrimary(for: colorScheme))
-                Text(DictationShortcuts.holdHint)
-                    .font(.system(size: 11))
-                    .foregroundStyle(Theme.textSecondary(for: colorScheme))
-            }
-
-            Spacer(minLength: 8)
-
-            Text("Local only")
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(Theme.textSecondary(for: colorScheme))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Theme.cardBackground(for: colorScheme), in: Capsule())
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 11)
-        .glassPanel(cornerRadius: 22)
-        .shadow(color: Theme.accent.opacity(0.12), radius: 14, y: 6)
-        .padding(.horizontal, 28)
     }
 
     private var recentGrid: some View {
