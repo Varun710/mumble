@@ -1,9 +1,9 @@
-# Flow (Mumble)
+# Mumble
 
 A local-first macOS dictation and transcription app. Everything runs on-device with
 [WhisperKit](https://github.com/argmaxinc/argmax-oss-swift) — no account, no cloud, no audio ever leaves your Mac.
 
-Flow is two things in one:
+Mumble is two things in one:
 
 - A **windowed transcription manager**: record, get a cleaned transcript with timestamped
   segments, play it back with a synced playhead, search your library, and keep notes.
@@ -16,7 +16,9 @@ Flow is two things in one:
 
 - On-device speech-to-text via WhisperKit (downloads the model on first use).
 - Window recording with a record orb, live waveform, and automatic transcription.
-- Global push-to-talk dictation with a floating overlay capsule (default hotkey: `⌃⌥Space`).
+- Global push-to-talk dictation with a floating overlay capsule — hold the **Right Option (⌥)** key.
+- Menu-bar control: click the menu-bar icon → **Start/Stop Dictation** to dictate hands-free
+  on top of any app and paste at the cursor (no window required).
 - Deterministic text cleanup: filler-word removal (`um`, `uh`, …), repeated-word collapsing,
   spacing/punctuation normalization, and a custom dictionary.
 - Transcript player: waveform scrubbing, tap-a-segment to seek, current-segment highlight,
@@ -60,13 +62,46 @@ sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild ...
 ```
 
-On first launch, Flow downloads the selected WhisperKit model (default: **Base**, ~145 MB).
+## Install to /Applications
+
+To run Mumble as a normal installed app (not just from Xcode):
+
+```bash
+./scripts/install.sh
+```
+
+This generates the project, builds **Release**, ad-hoc signs it (no Apple Developer account
+needed), copies `Mumble.app` to `/Applications`, clears the Gatekeeper quarantine flag, and
+launches it. From then on Mumble lives in your Applications folder and the menu bar.
+
+> Because the app is ad-hoc signed, macOS ties Accessibility / Input Monitoring grants to the
+> build's signature. If you re-run the installer after code changes, you may need to re-grant
+> those once in System Settings.
+
+Alternatively, in Xcode: **Product → Archive → Distribute App → Custom → Copy App**, or just
+build and drag `Mumble.app` from the Products group into `/Applications`.
+
+## Using it from the menu bar
+
+Mumble runs as a menu-bar app. Hold the **Right Option (⌥)** key anywhere, speak, then release —
+the cleaned text is pasted into whatever app and text field has focus. You can also click the
+menu-bar icon and choose **Start / Stop Dictation** for a hands-free toggle.
+
+The Right Option hotkey requires **Input Monitoring** permission; pasting requires
+**Accessibility**. Both are requested during onboarding.
+
+## First run
+
+On first launch, an onboarding flow walks you through granting permissions and downloading a
+speech model (you can download several at once, each with its own progress). **Base** (~145 MB)
+is the quick default; **Large v3 Turbo** is the most accurate on Apple Silicon. Mumble won't
+record until at least one model is downloaded, and it tells you if a selected model is missing.
 Pick a different model in **Settings → Models** — `Large v3 Turbo` is recommended for the best
 accuracy/speed on Apple Silicon.
 
 ## Permissions
 
-Flow asks for three macOS permissions (manage them in **Settings → Permissions**):
+Mumble asks for three macOS permissions (manage them in **Settings → Permissions**):
 
 | Permission | Why | Where |
 | --- | --- | --- |
@@ -80,7 +115,7 @@ Flow asks for three macOS permissions (manage them in **Settings → Permissions
 ## Why it's not sandboxed
 
 Pasting into arbitrary apps uses `CGEvent.post` to synthesize `⌘V`, which is **blocked by the
-App Sandbox with no entitlement workaround**. Flow therefore ships **non-sandboxed**
+App Sandbox with no entitlement workaround**. Mumble therefore ships **non-sandboxed**
 (Developer ID + Hardened Runtime + notarization for distribution). This is standard for
 dictation utilities and rules out Mac App Store distribution.
 
@@ -90,7 +125,7 @@ If you distribute an unsigned `.zip`/`.dmg` (no Apple Developer account), Gateke
 on first open. Users can bypass it with:
 
 - **Right-click the app → Open → Open**, or
-- `xattr -dr com.apple.quarantine /Applications/Flow.app`
+- `xattr -dr com.apple.quarantine /Applications/Mumble.app`
 
 ## Project structure
 

@@ -41,23 +41,26 @@ final class TranscriptionService {
         self.modelManager = modelManager
     }
 
-    /// Ensures the configured model is downloaded and loaded.
+    /// Whether the given model has been downloaded and is ready to use.
+    func isModelDownloaded(_ model: String) -> Bool {
+        modelManager.isReady(model)
+    }
+
+    /// Ensures the configured model is loaded into the engine for transcription.
+    /// Assumes the model is already downloaded (callers guard with `isModelDownloaded`).
     func ensureModelLoaded(_ model: String) async throws {
         if loadedModel == model { return }
         status = .loadingModel(0)
-        modelManager.setDownloading(model, progress: 0)
         do {
             try await engine.prepare(model: model, downloadBase: Paths.modelsDir) { [weak self] fraction in
                 Task { @MainActor in
                     self?.status = .loadingModel(fraction)
-                    self?.modelManager.setDownloading(model, progress: fraction)
                 }
             }
             loadedModel = model
             modelManager.setReady(model)
             status = .ready
         } catch {
-            modelManager.setFailed(model, message: error.localizedDescription)
             status = .error(error.localizedDescription)
             throw error
         }

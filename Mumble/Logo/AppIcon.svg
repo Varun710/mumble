@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#211A3A"/>
+      <stop offset="1" stop-color="#0E0B1A"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="0" y1="-50" x2="0" y2="50" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#A98BFF"/>
+      <stop offset="1" stop-color="#6C5CF5"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1024" height="1024" rx="229" ry="229" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1024" height="1024" rx="229" ry="229" fill="none" stroke="#FFFFFF" stroke-opacity="0.06" stroke-width="2"/>
+  <g transform="translate(274,512) scale(3.4)">
+    <rect x="-8.5" y="-31.0" width="17" height="62.0" rx="8.5" fill="url(#mark)"/>
+    <rect x="21.5" y="-43.0" width="17" height="86.0" rx="8.5" fill="url(#mark)"/>
+    <rect x="51.5" y="-24.0" width="17" height="48.0" rx="8.5" fill="url(#mark)"/>
+    <circle cx="92" cy="0" r="8.5" fill="#9A8BFF" opacity="1.0"/>
+    <circle cx="116" cy="0" r="8.5" fill="#9A8BFF" opacity="0.66"/>
+    <circle cx="140" cy="0" r="8.5" fill="#9A8BFF" opacity="0.42"/>
+  </g>
+</svg>

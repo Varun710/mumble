@@ -67,6 +67,10 @@ struct RecordingPanel: View {
                 .fixedSize()
             }
 
+            if !env.modelManager.isReady(settings.modelName) {
+                ModelNotDownloadedNote(modelName: settings.modelName)
+            }
+
             settingRow("Device") {
                 Text("Auto (Apple Silicon)")
                     .font(.system(size: 12))

@@ -52,6 +52,11 @@ final class RecorderViewModel {
         guard phase == .idle else { return }
         errorMessage = nil
 
+        guard transcription.isModelDownloaded(settings.modelName) else {
+            errorMessage = "No speech model downloaded yet. Open Settings → Models to download one."
+            return
+        }
+
         guard await permissions.requestMicrophone() else {
             errorMessage = "Microphone access is required. Enable it in System Settings > Privacy & Security > Microphone."
             return

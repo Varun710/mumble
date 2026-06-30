@@ -26,6 +26,12 @@ struct RootView: View {
         .onChange(of: env.recorder.lastSavedID) { _, newValue in
             if let id = newValue { selection = .recording(id) }
         }
+        .sheet(isPresented: Binding(
+            get: { env.needsOnboarding },
+            set: { presented in if !presented { env.finishOnboarding() } }
+        )) {
+            OnboardingView(onFinish: { env.finishOnboarding() })
+        }
     }
 
     @ViewBuilder

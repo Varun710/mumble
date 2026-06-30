@@ -13,7 +13,7 @@
 	<key>CFBundleName</key>
 	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Flow</string>
+	<string>Mumble</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -25,9 +25,9 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Flow records your voice locally to transcribe speech into text. Audio never leaves your Mac.</string>
+	<string>Mumble records your voice locally to transcribe speech into text. Audio never leaves your Mac.</string>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>Flow can paste transcribed text into the app you are using.</string>
+	<string>Mumble can paste transcribed text into the app you are using.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Local-first. All data stays on your Mac.</string>
 </dict>

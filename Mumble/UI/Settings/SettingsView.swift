@@ -1,5 +1,4 @@
 import SwiftUI
-import KeyboardShortcuts
 
 struct SettingsView: View {
     @Environment(AppEnvironment.self) private var env
@@ -77,8 +76,14 @@ private struct RecordingSettingsSection: View {
                 }
                 LabeledRow("Model") {
                     Picker("", selection: $settings.modelName) {
-                        ForEach(ModelManager.catalog) { Text($0.displayName).tag($0.name) }
+                        ForEach(ModelManager.catalog) { model in
+                            Text(env.modelManager.isReady(model.name) ? model.displayName : "\(model.displayName) (not downloaded)")
+                                .tag(model.name)
+                        }
                     }.labelsHidden().fixedSize()
+                }
+                if !env.modelManager.isReady(settings.modelName) {
+                    ModelNotDownloadedNote(modelName: settings.modelName)
                 }
                 ToggleRow("Auto punctuation", isOn: $settings.autoPunctuation)
             }
@@ -102,10 +107,35 @@ private struct DictationSettingsSection: View {
         @Bindable var settings = env.settings
         VStack(alignment: .leading, spacing: 20) {
             SettingsGroup("Push-to-talk") {
-                LabeledRow("Hotkey (hold to dictate)") {
-                    KeyboardShortcuts.Recorder("", name: .pushToTalk)
+                HStack(spacing: 10) {
+                    Image(systemName: "option")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Theme.accent)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Hold the Right Option (⌥) key to dictate")
+                            .font(.system(size: 13, weight: .medium))
+                        Text("Works on top of any app. Release to transcribe and paste.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Theme.textTertiary)
+                    }
+                    Spacer()
                 }
-                Text("Hold the hotkey anywhere, speak, then release. Flow transcribes and pastes the cleaned text into the active app.")
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(env.dictation.isMonitoring ? Theme.success : Theme.recording)
+                        .frame(width: 7, height: 7)
+                    Text(env.dictation.isMonitoring
+                         ? "Hotkey active"
+                         : "Hotkey inactive — grant Input Monitoring in the Permissions tab")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.textSecondary)
+                    Spacer()
+                    if !env.dictation.isMonitoring {
+                        Button("Enable") { env.dictation.startMonitoring(); env.permissions.refresh() }
+                            .controlSize(.small)
+                    }
+                }
+                Text("You can also start/stop hands-free from the menu bar icon.")
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.textTertiary)
             }
@@ -130,7 +160,7 @@ private struct ModelsSettingsSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Models download on first use and are cached locally. Larger models are more accurate but slower.")
+            Text("Download a model to use Mumble. They are cached locally; larger models are more accurate but slower. You can download several at once.")
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.textSecondary)
 
@@ -198,7 +228,7 @@ private struct ModelsSettingsSection: View {
     }
 
     private func download(_ model: ModelInfo) {
-        Task { try? await env.transcription.ensureModelLoaded(model.name) }
+        env.modelManager.download(model.name)
     }
 }
 
@@ -285,9 +315,13 @@ private struct PermissionsSettingsSection: View {
                 action: { env.permissions.requestInputMonitoring() },
                 openSettings: { env.permissions.openInputMonitoringSettings() }
             )
-            Button("Refresh status") { env.permissions.refresh() }
-                .controlSize(.small)
-                .padding(.top, 4)
+            HStack {
+                Button("Refresh status") { env.permissions.refresh(); env.dictation.startMonitoring() }
+                    .controlSize(.small)
+                Button("Run setup again") { env.showOnboarding = true }
+                    .controlSize(.small)
+            }
+            .padding(.top, 4)
         }
         .onAppear { env.permissions.refresh() }
     }
@@ -368,6 +402,41 @@ private struct LabeledRow<Content: View>: View {
             Spacer()
             content
         }
+    }
+}
+
+struct ModelNotDownloadedNote: View {
+    @Environment(AppEnvironment.self) private var env
+    let modelName: String
+
+    var body: some View {
+        let state = env.modelManager.state(for: modelName)
+        HStack(spacing: 8) {
+            Image(systemName: "arrow.down.circle")
+                .font(.system(size: 13))
+                .foregroundStyle(Theme.accent)
+            switch state {
+            case .downloading(let p):
+                Text("Downloading \(env.modelManager.displayName(for: modelName))…")
+                    .font(.system(size: 11)).foregroundStyle(Theme.textSecondary)
+                Spacer()
+                Text("\(Int(p * 100))%")
+                    .font(.system(size: 11, design: .monospaced)).foregroundStyle(Theme.textSecondary)
+            case .failed:
+                Text("Download failed.")
+                    .font(.system(size: 11)).foregroundStyle(Theme.recording)
+                Spacer()
+                Button("Retry") { env.modelManager.download(modelName) }.controlSize(.small)
+            default:
+                Text("This model isn’t downloaded yet.")
+                    .font(.system(size: 11)).foregroundStyle(Theme.textSecondary)
+                Spacer()
+                Button("Download") { env.modelManager.download(modelName) }
+                    .controlSize(.small).tint(Theme.accent)
+            }
+        }
+        .padding(10)
+        .background(Theme.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 

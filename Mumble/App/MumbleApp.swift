@@ -24,7 +24,7 @@ struct MumbleApp: App {
             }
         }
 
-        MenuBarExtra("Flow", systemImage: "waveform") {
+        MenuBarExtra("Mumble", image: "MenuBarSymbol") {
             MenuBarContent()
                 .environment(env)
         }
@@ -45,15 +45,24 @@ private struct MenuBarContent: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        Button("Open Flow") {
+        Button(env.dictation.isActive ? "Stop Dictation" : "Start Dictation") {
+            env.dictation.toggle()
+        }
+        Text(env.dictation.isActive ? "Listening… click to stop & paste" : "Or hold ⌃⌥Space anywhere to dictate")
+            .font(.caption)
+
+        Divider()
+
+        Button("Open Mumble") {
             NSApp.setActivationPolicy(.regular)
             NSApp.activate(ignoringOtherApps: true)
             openWindow(id: "main")
         }
+        SettingsLink { Text("Settings…") }
+
         Divider()
-        Text("Hold the dictation hotkey to dictate")
-        Divider()
-        Button("Quit Flow") { NSApp.terminate(nil) }
+
+        Button("Quit Mumble") { NSApp.terminate(nil) }
             .keyboardShortcut("q")
     }
 }

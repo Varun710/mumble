@@ -1,15 +1,12 @@
 import Foundation
 import SwiftData
-import KeyboardShortcuts
+import Observation
 
-extension KeyboardShortcuts.Name {
-    /// Hold to dictate, release to transcribe + paste.
-    static let pushToTalk = Self("pushToTalk", default: .init(.space, modifiers: [.control, .option]))
-}
-
-/// Global push-to-talk dictation: hold the hotkey to record, release to
-/// transcribe, clean, and paste into the active app.
+/// Global push-to-talk dictation: hold the **Right Option** key to record,
+/// release to transcribe, clean, and paste into the active app. Also supports a
+/// tap-to-toggle mode driven from the menu bar.
 @MainActor
+@Observable
 final class DictationController {
     private let transcription: TranscriptionService
     private let settings: SettingsStore
@@ -17,6 +14,7 @@ final class DictationController {
     private let overlay: OverlayController
     private let container: ModelContainer
     private let paste = PasteService()
+    private let monitor = RightOptionMonitor()
 
     private var pipeline: AudioPipeline?
     private var levelTask: Task<Void, Never>?
@@ -24,7 +22,7 @@ final class DictationController {
     private var startedAt: Date?
     private var currentID = UUID()
     private var currentFileURL: URL?
-    private var isActive = false
+    private(set) var isActive = false
     private var hideWorkItem: DispatchWorkItem?
 
     init(transcription: TranscriptionService, settings: SettingsStore, permissions: PermissionsService, overlay: OverlayController, container: ModelContainer) {
@@ -35,12 +33,25 @@ final class DictationController {
         self.container = container
     }
 
-    func registerHotkey() {
-        KeyboardShortcuts.onKeyDown(for: .pushToTalk) { [weak self] in
-            Task { await self?.begin() }
-        }
-        KeyboardShortcuts.onKeyUp(for: .pushToTalk) { [weak self] in
-            Task { await self?.finish() }
+    /// Whether the global Right-Option monitor is currently active.
+    var isMonitoring: Bool { monitor.isRunning }
+
+    /// Installs (or retries installing) the global Right-Option hold monitor.
+    /// Returns false if Input Monitoring permission is missing.
+    @discardableResult
+    func startMonitoring() -> Bool {
+        monitor.onPress = { [weak self] in Task { await self?.begin() } }
+        monitor.onRelease = { [weak self] in Task { await self?.finish() } }
+        return monitor.start()
+    }
+
+    /// Tap-to-toggle: start dictating if idle, otherwise stop + paste.
+    /// Used by the menu bar and the optional toggle hotkey.
+    func toggle() {
+        if isActive {
+            Task { await finish() }
+        } else {
+            Task { await begin() }
         }
     }
 
@@ -49,8 +60,14 @@ final class DictationController {
         isActive = true
         hideWorkItem?.cancel()
 
+        guard transcription.isModelDownloaded(settings.modelName) else {
+            showError("No speech model yet. Open Mumble ▸ Settings ▸ Models to download one.", hideAfter: 4)
+            isActive = false
+            return
+        }
+
         guard await permissions.requestMicrophone() else {
-            showError("Microphone access required", hideAfter: 2.5)
+            showError("Microphone access required. Enable it in System Settings ▸ Privacy ▸ Microphone.", hideAfter: 3)
             isActive = false
             return
         }

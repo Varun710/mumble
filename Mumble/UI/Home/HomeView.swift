@@ -24,7 +24,7 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(greeting)
                 .font(.system(size: 24, weight: .bold))
-            Text("Speak naturally. Flow transcribes and cleans it up locally.")
+            Text("Speak naturally. Mumble transcribes and cleans it up locally.")
                 .font(.system(size: 14))
                 .foregroundStyle(Theme.textSecondary)
         }

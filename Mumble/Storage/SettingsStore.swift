@@ -41,6 +41,11 @@ final class SettingsStore {
         didSet { defaults.set(restoreClipboard, forKey: Keys.restoreClipboard) }
     }
 
+    /// Whether first-run onboarding has been completed.
+    var didCompleteOnboarding: Bool {
+        didSet { defaults.set(didCompleteOnboarding, forKey: Keys.didCompleteOnboarding) }
+    }
+
     /// Custom dictionary as "wrong=>right" replacement pairs plus protected spellings.
     var dictionaryEntries: [DictionaryEntry] {
         didSet { persistDictionary() }
@@ -60,6 +65,7 @@ final class SettingsStore {
         self.pasteIntoActiveApp = defaults.object(forKey: Keys.pasteIntoActiveApp) as? Bool ?? true
         self.copyToClipboard = defaults.object(forKey: Keys.copyToClipboard) as? Bool ?? true
         self.restoreClipboard = defaults.object(forKey: Keys.restoreClipboard) as? Bool ?? true
+        self.didCompleteOnboarding = defaults.object(forKey: Keys.didCompleteOnboarding) as? Bool ?? false
 
         if let data = defaults.data(forKey: Keys.dictionary),
            let decoded = try? JSONDecoder().decode([DictionaryEntry].self, from: data) {
@@ -88,6 +94,7 @@ final class SettingsStore {
         static let pasteIntoActiveApp = "settings.pasteIntoActiveApp"
         static let copyToClipboard = "settings.copyToClipboard"
         static let restoreClipboard = "settings.restoreClipboard"
+        static let didCompleteOnboarding = "settings.didCompleteOnboarding"
         static let dictionary = "settings.dictionary"
     }
 }

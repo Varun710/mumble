@@ -22,11 +22,11 @@ struct SidebarView: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            Image(systemName: "waveform")
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(Theme.accent)
-            Text("Flow")
-                .font(.system(size: 16, weight: .semibold))
+            Image("Wordmark")
+                .resizable()
+                .scaledToFit()
+                .frame(height: 22)
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 14)

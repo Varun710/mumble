@@ -4,17 +4,19 @@ import SwiftUI
 struct LiveWaveform: View {
     let levels: [Float]
     var color: Color = Theme.accent
+    var gradient: Bool = true
 
     var body: some View {
         GeometryReader { geo in
             let count = max(levels.count, 1)
-            let spacing: CGFloat = 2
-            let barWidth = max(1.5, (geo.size.width - CGFloat(count - 1) * spacing) / CGFloat(count))
+            let spacing: CGFloat = 2.5
+            let barWidth = max(2, (geo.size.width - CGFloat(count - 1) * spacing) / CGFloat(count))
             HStack(alignment: .center, spacing: spacing) {
                 ForEach(Array(levels.enumerated()), id: \.offset) { _, level in
                     Capsule()
-                        .fill(color)
-                        .frame(width: barWidth, height: max(2, CGFloat(level) * geo.size.height))
+                        .fill(gradient ? AnyShapeStyle(Theme.accentGradient) : AnyShapeStyle(color))
+                        .frame(width: barWidth, height: max(3, CGFloat(level) * geo.size.height))
+                        .animation(.easeOut(duration: 0.12), value: level)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
