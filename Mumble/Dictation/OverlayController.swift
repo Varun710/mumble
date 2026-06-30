@@ -19,6 +19,14 @@ final class OverlayModel {
 final class OverlayController {
     let model = OverlayModel()
     private var panel: OverlayPanel?
+    private var appearance: AppearanceMode = .system
+
+    func setAppearance(_ mode: AppearanceMode) {
+        appearance = mode
+        if panel != nil {
+            panel?.contentView = makeHostingView()
+        }
+    }
 
     func show() {
         let panel = panel ?? makePanel()
@@ -33,18 +41,32 @@ final class OverlayController {
 
     private func makePanel() -> OverlayPanel {
         let panel = OverlayPanel()
-        let host = NSHostingView(rootView: OverlayView(model: model))
-        host.translatesAutoresizingMaskIntoConstraints = true
-        host.autoresizingMask = [.width, .height]
-        panel.contentView = host
+        panel.contentView = makeHostingView()
         return panel
+    }
+
+    private func makeHostingView() -> NSHostingView<OverlayRootView> {
+        NSHostingView(
+            rootView: OverlayRootView(model: model, appearance: appearance)
+        )
     }
 
     private func position(_ panel: OverlayPanel) {
         guard let screen = NSScreen.main else { return }
         let visible = screen.visibleFrame
         let size = panel.frame.size
-        let origin = NSPoint(x: visible.midX - size.width / 2, y: visible.minY + 60)
+        let origin = NSPoint(x: visible.midX - size.width / 2, y: visible.minY + 72)
         panel.setFrameOrigin(origin)
+    }
+}
+
+/// Hosts the overlay with the user's appearance preference.
+private struct OverlayRootView: View {
+    @Bindable var model: OverlayModel
+    let appearance: AppearanceMode
+
+    var body: some View {
+        OverlayView(model: model)
+            .preferredColorScheme(appearance.colorScheme)
     }
 }

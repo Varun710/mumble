@@ -2,9 +2,11 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(AppEnvironment.self) private var env
-    @State private var tab: Tab = .recording
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var tab: Tab = .general
 
     enum Tab: String, CaseIterable, Identifiable {
+        case general = "General"
         case recording = "Recording"
         case dictation = "Dictation"
         case models = "Models"
@@ -13,6 +15,7 @@ struct SettingsView: View {
         var id: String { rawValue }
         var icon: String {
             switch self {
+            case .general: return "paintbrush"
             case .recording: return "waveform"
             case .dictation: return "text.cursor"
             case .models: return "cpu"
@@ -39,11 +42,12 @@ struct SettingsView: View {
             .labelsHidden()
             .padding(.horizontal, 20)
 
-            Divider().overlay(Theme.separator).padding(.top, 16)
+            Divider().overlay(Theme.separator(for: colorScheme)).padding(.top, 16)
 
             ScrollView {
                 Group {
                     switch tab {
+                    case .general: GeneralSettingsSection()
                     case .recording: RecordingSettingsSection()
                     case .dictation: DictationSettingsSection()
                     case .models: ModelsSettingsSection()
@@ -55,8 +59,35 @@ struct SettingsView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .background(Theme.windowBackground)
-        .foregroundStyle(Theme.textPrimary)
+        .foregroundStyle(Theme.textPrimary(for: colorScheme))
+    }
+}
+
+// MARK: - General
+
+private struct GeneralSettingsSection: View {
+    @Environment(AppEnvironment.self) private var env
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        @Bindable var settings = env.settings
+        VStack(alignment: .leading, spacing: 20) {
+            SettingsGroup("Appearance") {
+                LabeledRow("Theme") {
+                    Picker("", selection: $settings.appearance) {
+                        ForEach(AppearanceMode.allCases) { mode in
+                            Text(mode.label).tag(mode)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .fixedSize()
+                }
+                Text("Choose System to follow your Mac's light or dark mode.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.textTertiary(for: colorScheme))
+            }
+        }
     }
 }
 
@@ -157,6 +188,7 @@ private struct DictationSettingsSection: View {
 
 private struct ModelsSettingsSection: View {
     @Environment(AppEnvironment.self) private var env
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -190,11 +222,10 @@ private struct ModelsSettingsSection: View {
             Spacer()
             stateView(model: model, state: state, isCurrent: isCurrent)
         }
-        .padding(14)
-        .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .contentCard(padding: 14, cornerRadius: Theme.cornerRadius)
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(isCurrent ? Theme.accent.opacity(0.5) : Theme.separator, lineWidth: 1)
+            RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous)
+                .strokeBorder(isCurrent ? Theme.accent.opacity(0.5) : Theme.separator(for: colorScheme), lineWidth: 1)
         )
     }
 
@@ -236,6 +267,7 @@ private struct ModelsSettingsSection: View {
 
 private struct DictionarySettingsSection: View {
     @Environment(AppEnvironment.self) private var env
+    @Environment(\.colorScheme) private var colorScheme
     @State private var newFrom = ""
     @State private var newTo = ""
 
@@ -267,7 +299,7 @@ private struct DictionarySettingsSection: View {
                                 .buttonStyle(.plain).foregroundStyle(Theme.textTertiary)
                         }
                         .padding(.horizontal, 12).padding(.vertical, 8)
-                        .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 8))
+                        .background(Theme.cardBackground(for: colorScheme), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
                 }
             }
@@ -291,6 +323,7 @@ private struct DictionarySettingsSection: View {
 
 private struct PermissionsSettingsSection: View {
     @Environment(AppEnvironment.self) private var env
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -334,7 +367,7 @@ private struct PermissionsSettingsSection: View {
                 .frame(width: 22)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.system(size: 13, weight: .semibold))
-                Text(detail).font(.system(size: 11)).foregroundStyle(Theme.textSecondary)
+                Text(detail).font(.system(size: 11)).foregroundStyle(Theme.textSecondary(for: colorScheme))
             }
             Spacer()
             switch state {
@@ -346,8 +379,7 @@ private struct PermissionsSettingsSection: View {
                 Button("Open Settings", action: openSettings).controlSize(.small)
             }
         }
-        .padding(14)
-        .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .contentCard(padding: 14, cornerRadius: Theme.cornerRadius)
     }
 
     private func icon(_ s: PermissionState) -> String {
@@ -372,6 +404,8 @@ private struct PermissionsSettingsSection: View {
 private struct SettingsGroup<Content: View>: View {
     let title: String
     @ViewBuilder let content: Content
+    @Environment(\.colorScheme) private var colorScheme
+
     init(_ title: String, @ViewBuilder content: () -> Content) {
         self.title = title
         self.content = content()
@@ -380,11 +414,9 @@ private struct SettingsGroup<Content: View>: View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title.uppercased())
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(Theme.textTertiary)
+                .foregroundStyle(Theme.textTertiary(for: colorScheme))
             VStack(spacing: 12) { content }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .contentCard(cornerRadius: 16)
         }
     }
 }
@@ -392,13 +424,15 @@ private struct SettingsGroup<Content: View>: View {
 private struct LabeledRow<Content: View>: View {
     let title: String
     @ViewBuilder let content: Content
+    @Environment(\.colorScheme) private var colorScheme
+
     init(_ title: String, @ViewBuilder content: () -> Content) {
         self.title = title
         self.content = content()
     }
     var body: some View {
         HStack {
-            Text(title).font(.system(size: 13)).foregroundStyle(Theme.textPrimary)
+            Text(title).font(.system(size: 13)).foregroundStyle(Theme.textPrimary(for: colorScheme))
             Spacer()
             content
         }
@@ -443,13 +477,15 @@ struct ModelNotDownloadedNote: View {
 private struct ToggleRow: View {
     let title: String
     @Binding var isOn: Bool
+    @Environment(\.colorScheme) private var colorScheme
+
     init(_ title: String, isOn: Binding<Bool>) {
         self.title = title
         self._isOn = isOn
     }
     var body: some View {
         HStack {
-            Text(title).font(.system(size: 13)).foregroundStyle(Theme.textPrimary)
+            Text(title).font(.system(size: 13)).foregroundStyle(Theme.textPrimary(for: colorScheme))
             Spacer()
             Toggle("", isOn: $isOn).labelsHidden().toggleStyle(.switch).controlSize(.small).tint(Theme.accent)
         }

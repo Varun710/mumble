@@ -3,6 +3,7 @@ import SwiftUI
 /// First-run setup: welcome -> permissions -> model download.
 struct OnboardingView: View {
     @Environment(AppEnvironment.self) private var env
+    @Environment(\.colorScheme) private var colorScheme
     let onFinish: () -> Void
 
     @State private var step = 0
@@ -11,18 +12,22 @@ struct OnboardingView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            Divider().overlay(Theme.separator)
+            Divider().overlay(Theme.separator(for: colorScheme))
             ScrollView {
                 content
                     .padding(28)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            Divider().overlay(Theme.separator)
+            Divider().overlay(Theme.separator(for: colorScheme))
             footer
         }
         .frame(width: 580, height: 600)
-        .background(Theme.windowBackground)
-        .foregroundStyle(Theme.textPrimary)
+        .background {
+            ZStack {
+                AmbientBackground()
+            }
+        }
+        .foregroundStyle(Theme.textPrimary(for: colorScheme))
         .onAppear { env.permissions.refresh(); env.modelManager.refreshAvailability() }
     }
 
@@ -59,7 +64,7 @@ struct OnboardingView: View {
                 .font(.system(size: 22, weight: .bold))
             Text("Mumble transcribes your speech entirely on your Mac with WhisperKit. No account, no cloud — your audio never leaves your device.")
                 .font(.system(size: 14))
-                .foregroundStyle(Theme.textSecondary)
+                .foregroundStyle(Theme.textSecondary(for: colorScheme))
 
             VStack(alignment: .leading, spacing: 12) {
                 feature("option", "Hold Right Option (⌥) to dictate", "Speak over any app; release to paste cleaned text at your cursor.")
@@ -115,11 +120,11 @@ struct OnboardingView: View {
         HStack(spacing: 12) {
             Image(systemName: state == .granted ? "checkmark.shield.fill" : "shield")
                 .font(.system(size: 16))
-                .foregroundStyle(state == .granted ? Theme.success : Theme.textTertiary)
+                .foregroundStyle(state == .granted ? Theme.success : Theme.textTertiary(for: colorScheme))
                 .frame(width: 22)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.system(size: 13, weight: .semibold))
-                Text(detail).font(.system(size: 11)).foregroundStyle(Theme.textSecondary)
+                Text(detail).font(.system(size: 11)).foregroundStyle(Theme.textSecondary(for: colorScheme))
             }
             Spacer()
             switch state {
@@ -128,8 +133,7 @@ struct OnboardingView: View {
             case .denied: Button("Open Settings", action: open).controlSize(.small)
             }
         }
-        .padding(14)
-        .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .contentCard(padding: 14, cornerRadius: Theme.cornerRadius)
     }
 
     // MARK: Models
@@ -179,8 +183,7 @@ struct OnboardingView: View {
                 Button("Download") { env.modelManager.download(model.name) }.controlSize(.small).tint(Theme.accent)
             }
         }
-        .padding(14)
-        .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .contentCard(padding: 14, cornerRadius: Theme.cornerRadius)
     }
 
     // MARK: Footer
@@ -190,7 +193,7 @@ struct OnboardingView: View {
             if step > 0 {
                 Button("Back") { withAnimation { step -= 1 } }
                     .buttonStyle(.plain)
-                    .foregroundStyle(Theme.textSecondary)
+                    .foregroundStyle(Theme.textSecondary(for: colorScheme))
             }
             Spacer()
             if step < steps.count - 1 {

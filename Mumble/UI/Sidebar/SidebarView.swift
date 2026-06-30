@@ -4,6 +4,7 @@ import SwiftData
 struct SidebarView: View {
     @Binding var selection: SidebarItem
     @Environment(AppEnvironment.self) private var env
+    @Environment(\.colorScheme) private var colorScheme
     @Query(sort: \Recording.createdAt, order: .reverse) private var recordings: [Recording]
 
     var body: some View {
@@ -17,7 +18,6 @@ struct SidebarView: View {
             footer
         }
         .padding(.vertical, 12)
-        .background(Theme.sidebarBackground)
     }
 
     private var header: some View {
@@ -47,7 +47,7 @@ struct SidebarView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 9)
             .frame(maxWidth: .infinity)
-            .background(Theme.accentGradient, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .background(Theme.accentGradient, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             .foregroundStyle(.white)
         }
         .buttonStyle(.plain)
@@ -72,15 +72,15 @@ struct SidebarView: View {
                 Image(systemName: icon)
                     .font(.system(size: 13))
                     .frame(width: 18)
-                    .foregroundStyle(isSelected ? Theme.accent : Theme.textSecondary)
+                    .foregroundStyle(isSelected ? Theme.accent : Theme.textSecondary(for: colorScheme))
                 Text(title)
                     .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
-                    .foregroundStyle(isSelected ? Theme.textPrimary : Theme.textSecondary)
+                    .foregroundStyle(isSelected ? Theme.textPrimary(for: colorScheme) : Theme.textSecondary(for: colorScheme))
                 Spacer()
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
-            .background(isSelected ? Theme.selection : Color.clear, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .background(isSelected ? Theme.selection : Color.clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -90,7 +90,7 @@ struct SidebarView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text("RECENT")
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(Theme.textTertiary)
+                .foregroundStyle(Theme.textTertiary(for: colorScheme))
                 .padding(.horizontal, 18)
                 .padding(.top, 18)
                 .padding(.bottom, 4)
@@ -112,23 +112,23 @@ struct SidebarView: View {
             HStack(spacing: 9) {
                 Image(systemName: recording.source == "dictation" ? "text.cursor" : "waveform")
                     .font(.system(size: 11))
-                    .foregroundStyle(Theme.textTertiary)
+                    .foregroundStyle(Theme.textTertiary(for: colorScheme))
                     .frame(width: 16)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(recording.title)
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Theme.textPrimary)
+                        .foregroundStyle(Theme.textPrimary(for: colorScheme))
                         .lineLimit(1)
                     Text(relativeLabel(recording.createdAt) + "  ·  " + durationLabel(recording.duration))
                         .font(.system(size: 10))
-                        .foregroundStyle(Theme.textTertiary)
+                        .foregroundStyle(Theme.textTertiary(for: colorScheme))
                         .lineLimit(1)
                 }
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(isSelected ? Theme.selection : Color.clear, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .background(isSelected ? Theme.selection : Color.clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -140,30 +140,29 @@ struct SidebarView: View {
             HStack(spacing: 6) {
                 Text("Local Engine")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Theme.textSecondary)
+                    .foregroundStyle(Theme.textSecondary(for: colorScheme))
                 Spacer()
                 HStack(spacing: 4) {
                     Circle()
-                        .fill(status == .ready ? Theme.success : (status.isBusy ? Theme.accent : Theme.textTertiary))
+                        .fill(status == .ready ? Theme.success : (status.isBusy ? Theme.accent : Theme.textTertiary(for: colorScheme)))
                         .frame(width: 6, height: 6)
                     Text(status.label)
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(status == .ready ? Theme.success : Theme.textSecondary)
+                        .foregroundStyle(status == .ready ? Theme.success : Theme.textSecondary(for: colorScheme))
                 }
             }
             Text("WhisperKit (\(env.modelManager.displayName(for: env.settings.modelName)))")
                 .font(.system(size: 10))
-                .foregroundStyle(Theme.textTertiary)
+                .foregroundStyle(Theme.textTertiary(for: colorScheme))
         }
-        .padding(12)
-        .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .contentCard(padding: 12, cornerRadius: 12)
         .padding(.horizontal, 12)
     }
 
     private var footer: some View {
         Text("All data stays on your Mac")
             .font(.system(size: 10))
-            .foregroundStyle(Theme.textTertiary)
+            .foregroundStyle(Theme.textTertiary(for: colorScheme))
             .padding(.horizontal, 16)
             .padding(.top, 10)
     }

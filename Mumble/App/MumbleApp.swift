@@ -3,7 +3,8 @@ import SwiftUI
 @main
 struct MumbleApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var env = AppEnvironment()
+
+    private var env: AppEnvironment { appDelegate.env }
 
     var body: some Scene {
         WindowGroup(id: "main") {
@@ -11,8 +12,8 @@ struct MumbleApp: App {
                 .environment(env)
                 .modelContainer(env.container)
                 .frame(minWidth: 920, minHeight: 600)
-                .task { env.bootstrap() }
-                .preferredColorScheme(.dark)
+                .background(MainWindowLifecycle())
+                .preferredColorScheme(env.settings.appearance.colorScheme)
         }
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified)
@@ -22,47 +23,48 @@ struct MumbleApp: App {
                 Button("New Recording") { env.recorder.toggle() }
                     .keyboardShortcut("r", modifiers: .command)
             }
+            CommandGroup(replacing: .appTermination) {
+                Button("Quit Mumble") {
+                    env.shutdown()
+                    NSApp.terminate(nil)
+                }
+                .keyboardShortcut("q")
+            }
         }
-
-        MenuBarExtra("Mumble", image: "MenuBarSymbol") {
-            MenuBarContent()
-                .environment(env)
-        }
-        .menuBarExtraStyle(.menu)
 
         Settings {
             SettingsView()
                 .environment(env)
                 .modelContainer(env.container)
                 .frame(width: 640, height: 560)
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(env.settings.appearance.colorScheme)
         }
     }
 }
 
-private struct MenuBarContent: View {
-    @Environment(AppEnvironment.self) private var env
-    @Environment(\.openWindow) private var openWindow
-
-    var body: some View {
-        Button(env.dictation.isActive ? "Stop Dictation" : "Start Dictation") {
-            env.dictation.toggle()
+/// Hooks the main window close button to hide (menu-bar mode) instead of quitting.
+private struct MainWindowLifecycle: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            guard let window = view.window, !(window is NSPanel) else { return }
+            window.isReleasedWhenClosed = false
+            if window.delegate == nil {
+                window.delegate = context.coordinator
+            }
         }
-        Text(env.dictation.isActive ? "Listening… click to stop & paste" : "Or hold ⌃⌥Space anywhere to dictate")
-            .font(.caption)
+        return view
+    }
 
-        Divider()
+    func updateNSView(_ nsView: NSView, context: Context) {}
 
-        Button("Open Mumble") {
-            NSApp.setActivationPolicy(.regular)
-            NSApp.activate(ignoringOtherApps: true)
-            openWindow(id: "main")
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    final class Coordinator: NSObject, NSWindowDelegate {
+        func windowShouldClose(_ sender: NSWindow) -> Bool {
+            sender.orderOut(nil)
+            ActivationPolicyController.recompute()
+            return false
         }
-        SettingsLink { Text("Settings…") }
-
-        Divider()
-
-        Button("Quit Mumble") { NSApp.terminate(nil) }
-            .keyboardShortcut("q")
     }
 }

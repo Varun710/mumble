@@ -6,6 +6,7 @@ struct RecordOrb: View {
     let levels: [Float]
     let action: () -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
     @State private var pulse = false
 
     var body: some View {
@@ -33,11 +34,11 @@ struct RecordOrb: View {
 
             Text(statusText)
                 .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(Theme.textSecondary)
+                .foregroundStyle(Theme.textSecondary(for: colorScheme))
 
             Text(phase == .recording ? "Click to stop" : "⌘R")
                 .font(.system(size: 11))
-                .foregroundStyle(Theme.textTertiary)
+                .foregroundStyle(Theme.textTertiary(for: colorScheme))
         }
     }
 

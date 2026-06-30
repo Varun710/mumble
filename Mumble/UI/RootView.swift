@@ -3,26 +3,40 @@ import SwiftData
 
 struct RootView: View {
     @Environment(AppEnvironment.self) private var env
+    @Environment(\.colorScheme) private var colorScheme
     @State private var selection: SidebarItem = .home
 
     var body: some View {
-        HStack(spacing: 0) {
-            SidebarView(selection: $selection)
+        ZStack {
+            AmbientBackground()
+
+            HStack(spacing: 12) {
+                MumbleGlassContainer {
+                    SidebarView(selection: $selection)
+                        .frame(maxHeight: .infinity)
+                        .glassPanel(cornerRadius: 20)
+                }
                 .frame(width: 248)
 
-            Divider().overlay(Theme.separator)
+                centerPane
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            centerPane
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            if selection.showsRecordingPanel {
-                Divider().overlay(Theme.separator)
-                RecordingPanel(selection: $selection)
+                if selection.showsRecordingPanel {
+                    MumbleGlassContainer {
+                        RecordingPanel(selection: $selection)
+                            .frame(maxHeight: .infinity)
+                            .glassPanel(cornerRadius: 20)
+                    }
                     .frame(width: 320)
+                }
             }
+            .padding(12)
         }
-        .background(Theme.windowBackground)
-        .foregroundStyle(Theme.textPrimary)
+        .foregroundStyle(Theme.textPrimary(for: colorScheme))
+        .onAppear {
+            env.dictation.startMonitoring()
+            env.permissions.refresh()
+        }
         .onChange(of: env.recorder.lastSavedID) { _, newValue in
             if let id = newValue { selection = .recording(id) }
         }

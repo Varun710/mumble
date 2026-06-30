@@ -4,6 +4,7 @@ import SwiftUI
 struct RecordingPanel: View {
     @Binding var selection: SidebarItem
     @Environment(AppEnvironment.self) private var env
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         @Bindable var settings = env.settings
@@ -15,7 +16,6 @@ struct RecordingPanel: View {
             }
             .padding(16)
         }
-        .background(Theme.panelBackground)
     }
 
     private var orbCard: some View {
@@ -36,14 +36,14 @@ struct RecordingPanel: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .contentCard(padding: 0, cornerRadius: 16)
     }
 
     private func recordingSettings(_ settings: SettingsStore) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Recording Settings")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Theme.textSecondary)
+                .foregroundStyle(Theme.textSecondary(for: colorScheme))
 
             settingRow("Language") {
                 Picker("", selection: Binding(get: { settings.language }, set: { settings.language = $0 })) {
@@ -74,13 +74,13 @@ struct RecordingPanel: View {
             settingRow("Device") {
                 Text("Auto (Apple Silicon)")
                     .font(.system(size: 12))
-                    .foregroundStyle(Theme.textSecondary)
+                    .foregroundStyle(Theme.textSecondary(for: colorScheme))
             }
 
             HStack {
                 Text("Auto punctuation")
                     .font(.system(size: 12))
-                    .foregroundStyle(Theme.textSecondary)
+                    .foregroundStyle(Theme.textSecondary(for: colorScheme))
                 Spacer()
                 Toggle("", isOn: Binding(get: { settings.autoPunctuation }, set: { settings.autoPunctuation = $0 }))
                     .labelsHidden()
@@ -96,20 +96,18 @@ struct RecordingPanel: View {
                     Spacer()
                     Image(systemName: "chevron.right").font(.system(size: 10))
                 }
-                .foregroundStyle(Theme.textSecondary)
+                .foregroundStyle(Theme.textSecondary(for: colorScheme))
             }
             .buttonStyle(.plain)
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .contentCard(cornerRadius: 16)
     }
 
     private func settingRow<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         HStack {
             Text(title)
                 .font(.system(size: 12))
-                .foregroundStyle(Theme.textSecondary)
+                .foregroundStyle(Theme.textSecondary(for: colorScheme))
             Spacer()
             content()
         }

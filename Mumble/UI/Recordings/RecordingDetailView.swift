@@ -5,6 +5,7 @@ struct RecordingDetailView: View {
     let recordingID: UUID
     @Binding var selection: SidebarItem
     @Environment(\.modelContext) private var context
+    @Environment(\.colorScheme) private var colorScheme
     @Query private var recordings: [Recording]
     @State private var player = TranscriptPlayer()
     @State private var isEditingTitle = false
@@ -26,7 +27,6 @@ struct RecordingDetailView: View {
                 missing
             }
         }
-        .background(Theme.windowBackground)
         .onAppear { player.load(url: recording?.audioURL) }
         .onChange(of: recordingID) { _, _ in player.load(url: recording?.audioURL) }
         .onDisappear { player.stop() }
@@ -35,7 +35,7 @@ struct RecordingDetailView: View {
     private func content(_ recording: Recording) -> some View {
         VStack(spacing: 0) {
             headerBar(recording)
-            Divider().overlay(Theme.separator)
+            Divider().overlay(Theme.separator(for: colorScheme))
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     waveformSection(recording)
@@ -50,6 +50,17 @@ struct RecordingDetailView: View {
 
     private func headerBar(_ recording: Recording) -> some View {
         HStack(spacing: 12) {
+            Button { selection = .recordings } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 12, weight: .semibold))
+                    Text("Recordings")
+                        .font(.system(size: 13, weight: .medium))
+                }
+                .foregroundStyle(Theme.accent)
+            }
+            .buttonStyle(.plain)
+
             VStack(alignment: .leading, spacing: 3) {
                 if isEditingTitle {
                     TextField("Title", text: $draftTitle, onCommit: { commitTitle(recording) })
@@ -64,26 +75,26 @@ struct RecordingDetailView: View {
                             Image(systemName: "pencil").font(.system(size: 11))
                         }
                         .buttonStyle(.plain)
-                        .foregroundStyle(Theme.textTertiary)
+                        .foregroundStyle(Theme.textTertiary(for: colorScheme))
                     }
                 }
                 Text("\(recording.createdAt.formatted(date: .abbreviated, time: .shortened))  ·  \(durationLabel(recording.duration))  ·  Local only")
                     .font(.system(size: 12))
-                    .foregroundStyle(Theme.textSecondary)
+                    .foregroundStyle(Theme.textSecondary(for: colorScheme))
             }
             Spacer()
             Button { copyTranscript(recording) } label: {
                 Image(systemName: "doc.on.doc")
             }
             .buttonStyle(.plain)
-            .foregroundStyle(Theme.textSecondary)
+            .foregroundStyle(Theme.textSecondary(for: colorScheme))
             .help("Copy transcript")
 
             Button(role: .destructive) { delete(recording) } label: {
                 Image(systemName: "trash")
             }
             .buttonStyle(.plain)
-            .foregroundStyle(Theme.textSecondary)
+            .foregroundStyle(Theme.textSecondary(for: colorScheme))
             .help("Delete recording")
         }
         .padding(20)
@@ -92,8 +103,8 @@ struct RecordingDetailView: View {
     private func waveformSection(_ recording: Recording) -> some View {
         Group {
             if recording.waveform.isEmpty {
-                RoundedRectangle(cornerRadius: 10).fill(Theme.cardBackground).frame(height: 80)
-                    .overlay(Text("No waveform").font(.system(size: 12)).foregroundStyle(Theme.textTertiary))
+                RoundedRectangle(cornerRadius: Theme.cornerRadius).fill(Theme.cardBackground(for: colorScheme)).frame(height: 80)
+                    .overlay(Text("No waveform").font(.system(size: 12)).foregroundStyle(Theme.textTertiary(for: colorScheme)))
             } else {
                 WaveformBars(samples: recording.waveform, progress: player.progress, height: 80) { fraction in
                     player.seek(fraction: fraction)
@@ -142,16 +153,16 @@ struct RecordingDetailView: View {
             .disabled(!player.hasAudio)
 
             Button { player.skip(by: -10) } label: { Image(systemName: "gobackward.10") }
-                .buttonStyle(.plain).foregroundStyle(Theme.textSecondary).disabled(!player.hasAudio)
+                .buttonStyle(.plain).foregroundStyle(Theme.textSecondary(for: colorScheme)).disabled(!player.hasAudio)
             Button { player.skip(by: 10) } label: { Image(systemName: "goforward.10") }
-                .buttonStyle(.plain).foregroundStyle(Theme.textSecondary).disabled(!player.hasAudio)
+                .buttonStyle(.plain).foregroundStyle(Theme.textSecondary(for: colorScheme)).disabled(!player.hasAudio)
 
             Button { addMark(recording) } label: {
                 Label("Mark", systemImage: "bookmark")
                     .font(.system(size: 12, weight: .medium))
             }
             .buttonStyle(.plain)
-            .foregroundStyle(Theme.textSecondary)
+            .foregroundStyle(Theme.textSecondary(for: colorScheme))
             .disabled(!player.hasAudio)
             .help("Add a mark at the current time")
 
@@ -159,7 +170,7 @@ struct RecordingDetailView: View {
 
             Text("\(timeLabel(player.currentTime)) / \(timeLabel(player.hasAudio ? player.duration : recording.duration))")
                 .font(.system(size: 12, design: .monospaced))
-                .foregroundStyle(Theme.textSecondary)
+                .foregroundStyle(Theme.textSecondary(for: colorScheme))
         }
         .padding(.vertical, 4)
     }
@@ -168,12 +179,12 @@ struct RecordingDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Transcript")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Theme.textSecondary)
+                .foregroundStyle(Theme.textSecondary(for: colorScheme))
 
             if recording.segments.isEmpty {
                 Text(recording.transcript.isEmpty ? "No transcript available." : recording.transcript)
                     .font(.system(size: 14))
-                    .foregroundStyle(Theme.textPrimary)
+                    .foregroundStyle(Theme.textPrimary(for: colorScheme))
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
@@ -190,12 +201,12 @@ struct RecordingDetailView: View {
             HStack(alignment: .top, spacing: 14) {
                 Text(segment.timestampLabel)
                     .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(Theme.textTertiary)
+                    .foregroundStyle(Theme.textTertiary(for: colorScheme))
                     .frame(width: 42, alignment: .leading)
                     .padding(.top, 2)
                 Text(segment.text)
                     .font(.system(size: 14))
-                    .foregroundStyle(isActive ? Theme.accent : Theme.textPrimary)
+                    .foregroundStyle(isActive ? Theme.accent : Theme.textPrimary(for: colorScheme))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .textSelection(.enabled)
             }
@@ -211,7 +222,7 @@ struct RecordingDetailView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Notes")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Theme.textSecondary)
+                .foregroundStyle(Theme.textSecondary(for: colorScheme))
             TextEditor(text: Binding(
                 get: { recording.notes },
                 set: { recording.notes = $0; try? context.save() }
@@ -220,12 +231,12 @@ struct RecordingDetailView: View {
             .scrollContentBackground(.hidden)
             .padding(10)
             .frame(minHeight: 90)
-            .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .background(Theme.cardBackground(for: colorScheme), in: RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous))
             .overlay(alignment: .topLeading) {
                 if recording.notes.isEmpty {
                     Text("Add a note…")
                         .font(.system(size: 13))
-                        .foregroundStyle(Theme.textTertiary)
+                        .foregroundStyle(Theme.textTertiary(for: colorScheme))
                         .padding(16)
                         .allowsHitTesting(false)
                 }
@@ -235,8 +246,8 @@ struct RecordingDetailView: View {
 
     private var missing: some View {
         VStack(spacing: 10) {
-            Image(systemName: "questionmark.folder").font(.system(size: 36)).foregroundStyle(Theme.textTertiary)
-            Text("Recording not found").foregroundStyle(Theme.textSecondary)
+            Image(systemName: "questionmark.folder").font(.system(size: 36)).foregroundStyle(Theme.textTertiary(for: colorScheme))
+            Text("Recording not found").foregroundStyle(Theme.textSecondary(for: colorScheme))
             Button("Back to recordings") { selection = .recordings }.buttonStyle(.plain).foregroundStyle(Theme.accent)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -5,6 +5,8 @@ struct LiveWaveform: View {
     let levels: [Float]
     var color: Color = Theme.accent
     var gradient: Bool = true
+    /// Boost bar height for overlay visibility.
+    var amplified: Bool = false
 
     var body: some View {
         GeometryReader { geo in
@@ -13,13 +15,55 @@ struct LiveWaveform: View {
             let barWidth = max(2, (geo.size.width - CGFloat(count - 1) * spacing) / CGFloat(count))
             HStack(alignment: .center, spacing: spacing) {
                 ForEach(Array(levels.enumerated()), id: \.offset) { _, level in
+                    let scaled = amplified ? CGFloat(level) * 2.0 + 0.08 : CGFloat(level)
+                    let height = max(amplified ? 4 : 3, min(geo.size.height, scaled * geo.size.height))
                     Capsule()
                         .fill(gradient ? AnyShapeStyle(Theme.accentGradient) : AnyShapeStyle(color))
-                        .frame(width: barWidth, height: max(3, CGFloat(level) * geo.size.height))
-                        .animation(.easeOut(duration: 0.12), value: level)
+                        .frame(width: barWidth, height: height)
+                        .animation(amplified ? .easeOut(duration: 0.06) : .easeOut(duration: 0.1), value: level)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: amplified ? .center : .trailing)
+        }
+    }
+}
+
+/// Logo-style live bars: a few thick pills centered on the midline, like the Mumble mark.
+struct LogoLiveWaveform: View {
+    let levels: [Float]
+    private let barCount = 5
+
+    var body: some View {
+        GeometryReader { geo in
+            let samples = bucketedLevels()
+            HStack(alignment: .center, spacing: 7) {
+                ForEach(0..<barCount, id: \.self) { index in
+                    let level = samples[index]
+                    let amplified = min(1, level * 1.5 + 0.1)
+                    let height = max(8, amplified * geo.size.height)
+                    Capsule()
+                        .fill(Theme.accentGradient)
+                        .frame(width: 9, height: height)
+                        .animation(.easeOut(duration: 0.1), value: level)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private func bucketedLevels() -> [CGFloat] {
+        guard !levels.isEmpty else {
+            return [0.18, 0.32, 0.22, 0.28, 0.16]
+        }
+        let recent = Array(levels.suffix(40))
+        let chunk = max(1, recent.count / barCount)
+        return (0..<barCount).map { index in
+            let start = index * chunk
+            let end = min(recent.count, start + chunk)
+            guard start < end else { return 0.12 }
+            let slice = recent[start..<end]
+            let avg = slice.reduce(0, +) / Float(slice.count)
+            return CGFloat(avg)
         }
     }
 }

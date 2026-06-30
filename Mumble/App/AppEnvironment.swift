@@ -52,16 +52,35 @@ final class AppEnvironment {
         permissions.refresh()
         modelManager.refreshAvailability()
         dictation.startMonitoring()
+        menuBar.install(env: self)
+        overlay.setAppearance(settings.appearance)
 
         if case .ready = modelManager.state(for: settings.modelName) {
             transcription.warmUp(model: settings.modelName)
         }
     }
 
+    /// Tear down background services before app exit.
+    func shutdown() {
+        dictation.shutdown()
+        overlay.hide()
+        menuBar.uninstall()
+    }
+
     /// Whether first-run onboarding should be shown.
     var needsOnboarding: Bool {
         !settings.didCompleteOnboarding || showOnboarding
     }
+
+    /// True while dictating, transcribing, or processing a window recording.
+    var showsMenuBarActivity: Bool {
+        dictation.isActive
+            || overlay.model.phase == .transcribing
+            || recorder.isRecording
+            || recorder.isProcessing
+    }
+
+    let menuBar = MenuBarController()
 
     func finishOnboarding() {
         settings.didCompleteOnboarding = true

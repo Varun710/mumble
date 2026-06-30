@@ -23,6 +23,7 @@ final class DictationController {
     private var currentID = UUID()
     private var currentFileURL: URL?
     private(set) var isActive = false
+    private(set) var hotkeyActive = false
     private var hideWorkItem: DispatchWorkItem?
 
     init(transcription: TranscriptionService, settings: SettingsStore, permissions: PermissionsService, overlay: OverlayController, container: ModelContainer) {
@@ -34,7 +35,7 @@ final class DictationController {
     }
 
     /// Whether the global Right-Option monitor is currently active.
-    var isMonitoring: Bool { monitor.isRunning }
+    var isMonitoring: Bool { hotkeyActive }
 
     /// Installs (or retries installing) the global Right-Option hold monitor.
     /// Returns false if Input Monitoring permission is missing.
@@ -42,7 +43,8 @@ final class DictationController {
     func startMonitoring() -> Bool {
         monitor.onPress = { [weak self] in Task { await self?.begin() } }
         monitor.onRelease = { [weak self] in Task { await self?.finish() } }
-        return monitor.start()
+        hotkeyActive = monitor.start()
+        return hotkeyActive
     }
 
     /// Tap-to-toggle: start dictating if idle, otherwise stop + paste.
@@ -53,6 +55,18 @@ final class DictationController {
         } else {
             Task { await begin() }
         }
+    }
+
+    /// Stops the global hotkey monitor and hides the overlay.
+    func shutdown() {
+        hideWorkItem?.cancel()
+        stopTimer()
+        levelTask?.cancel()
+        monitor.stop()
+        overlay.hide()
+        isActive = false
+        hotkeyActive = false
+        pipeline = nil
     }
 
     private func begin() async {
@@ -84,6 +98,7 @@ final class DictationController {
         overlay.model.levels = []
         overlay.model.elapsed = 0
         overlay.model.modelName = settings.modelName
+        overlay.setAppearance(settings.appearance)
 
         let stream = await pipeline.levelStream()
         do {

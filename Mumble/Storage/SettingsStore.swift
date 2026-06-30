@@ -46,6 +46,11 @@ final class SettingsStore {
         didSet { defaults.set(didCompleteOnboarding, forKey: Keys.didCompleteOnboarding) }
     }
 
+    /// UI appearance: system, light, or dark.
+    var appearance: AppearanceMode {
+        didSet { defaults.set(appearance.rawValue, forKey: Keys.appearance) }
+    }
+
     /// Custom dictionary as "wrong=>right" replacement pairs plus protected spellings.
     var dictionaryEntries: [DictionaryEntry] {
         didSet { persistDictionary() }
@@ -66,6 +71,7 @@ final class SettingsStore {
         self.copyToClipboard = defaults.object(forKey: Keys.copyToClipboard) as? Bool ?? true
         self.restoreClipboard = defaults.object(forKey: Keys.restoreClipboard) as? Bool ?? true
         self.didCompleteOnboarding = defaults.object(forKey: Keys.didCompleteOnboarding) as? Bool ?? false
+        self.appearance = AppearanceMode(rawValue: defaults.string(forKey: Keys.appearance) ?? "") ?? .system
 
         if let data = defaults.data(forKey: Keys.dictionary),
            let decoded = try? JSONDecoder().decode([DictionaryEntry].self, from: data) {
@@ -95,6 +101,7 @@ final class SettingsStore {
         static let copyToClipboard = "settings.copyToClipboard"
         static let restoreClipboard = "settings.restoreClipboard"
         static let didCompleteOnboarding = "settings.didCompleteOnboarding"
+        static let appearance = "settings.appearance"
         static let dictionary = "settings.dictionary"
     }
 }
