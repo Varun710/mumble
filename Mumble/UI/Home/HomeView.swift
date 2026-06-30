@@ -6,50 +6,18 @@ struct HomeView: View {
     @Environment(AppEnvironment.self) private var env
     @Environment(\.colorScheme) private var colorScheme
     @Query(sort: \Recording.createdAt, order: .reverse) private var recordings: [Recording]
-    @State private var isHoveringHero = false
-    @State private var isHoveringPill = false
-
-    private var showsStatusPill: Bool {
-        guard env.dictation.isMonitoring else { return false }
-        if env.dictation.isActive { return true }
-        return isHoveringHero || isHoveringPill || env.dictation.isHotkeyPressed
-    }
-
-    private var homePillPhase: DictationPillPhase {
-        switch env.overlay.model.phase {
-        case .transcribing:
-            return .transcribing(modelName: env.overlay.model.modelName)
-        case .done:
-            return .pasted
-        case .error:
-            return .error(env.overlay.model.message)
-        case .listening:
-            return .ready
-        }
-    }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    header
-                    hero
-                    if !recordings.isEmpty {
-                        recentGrid
-                    }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                header
+                hero
+                if !recordings.isEmpty {
+                    recentGrid
                 }
-                .padding(28)
-                .padding(.bottom, 72)
             }
-
-            if showsStatusPill {
-                DictationStatusPill(phase: homePillPhase)
-                    .onHover { isHoveringPill = $0 }
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .padding(.bottom, 20)
-            }
+            .padding(28)
         }
-        .animation(.spring(response: 0.32, dampingFraction: 0.82), value: showsStatusPill)
     }
 
     private var header: some View {
@@ -90,16 +58,6 @@ struct HomeView: View {
             }
         }
         .contentCard(padding: 24, cornerRadius: 20)
-        .onHover { hovering in
-            if hovering {
-                isHoveringHero = true
-            } else {
-                Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(180))
-                    if !isHoveringPill { isHoveringHero = false }
-                }
-            }
-        }
     }
 
     private var recentGrid: some View {

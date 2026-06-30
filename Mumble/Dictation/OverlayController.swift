@@ -11,6 +11,20 @@ final class OverlayModel {
     var phase: Phase = .listening
     var message: String = ""
     var modelName: String = ""
+    /// Live mic RMS levels (0...1) while listening.
+    var levels: [Float] = []
+    /// Seconds elapsed since dictation started.
+    var elapsed: TimeInterval = 0
+    /// Stable live caption text during listening.
+    var confirmedCaption: String = ""
+    /// Draft tail of the live caption (may revise).
+    var draftCaption: String = ""
+}
+
+/// Shared overlay dimensions — all phases use the same compact pill size.
+enum OverlayLayout {
+    /// Matches `DictationStatusPill` intrinsic width.
+    static let width: CGFloat = 389
 }
 
 /// Shows/hides the floating dictation capsule.
@@ -54,7 +68,18 @@ final class OverlayController {
     func hide() {
         panel?.orderOut(nil)
         lastSizedPhase = nil
+        model.levels = []
+        model.elapsed = 0
+        model.confirmedCaption = ""
+        model.draftCaption = ""
         AppLog.overlay.debug("hide")
+    }
+
+    /// Re-measure and reposition after live caption text changes.
+    func invalidateLayout() {
+        guard panel != nil, model.phase == .listening else { return }
+        resizePanelToFit()
+        if let panel { position(panel) }
     }
 
     private func makePanel() -> OverlayPanel {
@@ -67,6 +92,8 @@ final class OverlayController {
         if hostingView == nil {
             let hosting = NSHostingView(rootView: makeRootView())
             hosting.translatesAutoresizingMaskIntoConstraints = true
+            hosting.wantsLayer = true
+            hosting.layer?.backgroundColor = NSColor.clear.cgColor
             hostingView = hosting
 
             let container = makeGlassContainer(hosting: hosting)
@@ -81,6 +108,7 @@ final class OverlayController {
             let glass = NSGlassEffectView()
             glass.style = .regular
             glass.cornerRadius = 22
+            hosting.autoresizingMask = [.width, .height]
             glass.contentView = hosting
             return glass
         }
@@ -113,7 +141,8 @@ final class OverlayController {
         let size = NSSize(width: width, height: height)
         panel.setContentSize(size)
         glassContainer?.setFrameSize(size)
-        hosting.setFrameSize(hosting.fittingSize)
+        hosting.setFrameSize(size)
+        hosting.frame.origin = .zero
     }
 
     private func position(_ panel: OverlayPanel) {
@@ -132,6 +161,8 @@ private struct OverlayRootView: View {
 
     var body: some View {
         OverlayView(model: model)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .background(Color.clear)
             .preferredColorScheme(appearance.colorScheme)
     }
 }

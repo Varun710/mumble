@@ -18,7 +18,7 @@ final class OverlayPanel: NSPanel {
         isMovableByWindowBackground = true
         backgroundColor = .clear
         isOpaque = false
-        hasShadow = true
+        hasShadow = false
         titleVisibility = .hidden
         titlebarAppearsTransparent = true
         animationBehavior = .utilityWindow

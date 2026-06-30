@@ -7,19 +7,30 @@ actor WhisperKitEngine: TranscriptionEngine {
     private var whisperKit: WhisperKit?
     private var loadedModelName: String?
 
+    private var lastBufferSize = 0
+    private var lastConfirmedSegmentEndSeconds: Float = 0
+    private var confirmedSegments: [TranscriptionSegment] = []
+    private var unconfirmedSegments: [TranscriptionSegment] = []
+    private let requiredSegmentsForConfirmation = 2
+
     func currentModel() async -> String? { loadedModelName }
+
+    func resetPartialState() {
+        lastBufferSize = 0
+        lastConfirmedSegmentEndSeconds = 0
+        confirmedSegments = []
+        unconfirmedSegments = []
+    }
 
     func prepare(model: String, downloadBase: URL, progress: @escaping @Sendable (Double) -> Void) async throws {
         if loadedModelName == model, whisperKit != nil { return }
         do {
-            // Download (or locate) the CoreML model, reporting progress.
             let folder = try await WhisperKit.download(
                 variant: model,
                 downloadBase: downloadBase,
                 from: "argmaxinc/whisperkit-coreml",
                 progressCallback: { p in progress(p.fractionCompleted) }
             )
-            // Load + prewarm so the tokenizer is ready before transcription.
             let kit = try await WhisperKit(modelFolder: folder.path, load: true)
             whisperKit = kit
             loadedModelName = model
@@ -52,27 +63,82 @@ actor WhisperKitEngine: TranscriptionEngine {
         }
     }
 
+    func transcribePartial(
+        samples: [Float],
+        lastConfirmedEndSeconds: TimeInterval,
+        language: String?
+    ) async throws -> PartialTranscript {
+        guard let whisperKit else { throw TranscriptionError.notReady }
+        guard !samples.isEmpty else { return .empty }
+
+        let nextBufferSize = samples.count - lastBufferSize
+        let nextBufferSeconds = Float(nextBufferSize) / Float(WhisperKit.sampleRate)
+        guard nextBufferSeconds > 1 else { return currentPartial() }
+
+        lastBufferSize = samples.count
+
+        var options = decodingOptions(language: language)
+        options.clipTimestamps = [lastConfirmedSegmentEndSeconds]
+
+        let results: [TranscriptionResult]
+        do {
+            results = try await whisperKit.transcribe(audioArray: samples, decodeOptions: options)
+        } catch {
+            throw TranscriptionError.transcriptionFailed(error.localizedDescription)
+        }
+
+        let segments = results.flatMap(\.segments)
+        if segments.count > requiredSegmentsForConfirmation {
+            let numberToConfirm = segments.count - requiredSegmentsForConfirmation
+            let confirmedBatch = Array(segments.prefix(numberToConfirm))
+            let remaining = Array(segments.suffix(requiredSegmentsForConfirmation))
+
+            if let lastConfirmed = confirmedBatch.last, lastConfirmed.end > lastConfirmedSegmentEndSeconds {
+                lastConfirmedSegmentEndSeconds = lastConfirmed.end
+                confirmedSegments.append(contentsOf: confirmedBatch)
+            }
+            unconfirmedSegments = remaining
+        } else {
+            unconfirmedSegments = segments
+        }
+
+        return currentPartial()
+    }
+
+    private func currentPartial() -> PartialTranscript {
+        let confirmedText = confirmedSegments
+            .map { TranscriptDisplayText.sanitize($0.text) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        let draftText = unconfirmedSegments
+            .map { TranscriptDisplayText.sanitize($0.text) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        return PartialTranscript(
+            confirmedText: confirmedText,
+            draftText: draftText,
+            lastConfirmedEndSeconds: TimeInterval(lastConfirmedSegmentEndSeconds)
+        )
+    }
+
     private func decodingOptions(language: String?) -> DecodingOptions {
         DecodingOptions(
             task: .transcribe,
             language: language,
+            skipSpecialTokens: true,
+            withoutTimestamps: true,
             wordTimestamps: false,
             chunkingStrategy: .vad
         )
     }
 
     private nonisolated static func map(_ results: [TranscriptionResult]) -> TranscriptionOutput {
-        let text = results
-            .map(\.text)
-            .joined(separator: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
         var segments: [TranscriptSegment] = []
         var language: String?
         for result in results {
             if language == nil { language = result.language }
             for seg in result.segments {
-                let cleaned = seg.text.trimmingCharacters(in: .whitespaces)
+                let cleaned = TranscriptDisplayText.sanitize(seg.text)
                 guard !cleaned.isEmpty else { continue }
                 segments.append(TranscriptSegment(
                     start: TimeInterval(seg.start),
@@ -81,6 +147,12 @@ actor WhisperKitEngine: TranscriptionEngine {
                 ))
             }
         }
+
+        let text = segments
+            .map(\.text)
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
         return TranscriptionOutput(text: text, segments: segments, language: language)
     }
 }

@@ -25,6 +25,12 @@ final class DictationController {
     /// True while the Right Option key is physically held down.
     private(set) var isHotkeyPressed = false
     private var hideWorkItem: DispatchWorkItem?
+    private var levelTask: Task<Void, Never>?
+    private var elapsedTimer: Timer?
+    private var streamingSession: StreamingTranscriptionSession?
+    /// True while `begin()` is still setting up the audio pipeline.
+    private var isPreparingRecording = false
+    private let maxLevels = 48
 
     init(transcription: TranscriptionService, settings: SettingsStore, permissions: PermissionsService, overlay: OverlayController, container: ModelContainer) {
         self.transcription = transcription
@@ -70,6 +76,11 @@ final class DictationController {
     /// Stops the global hotkey monitor and hides the overlay.
     func shutdown() {
         hideWorkItem?.cancel()
+        stopElapsedTimer()
+        levelTask?.cancel()
+        levelTask = nil
+        Task { await streamingSession?.cancel() }
+        streamingSession = nil
         monitor.stop()
         overlay.hide()
         isActive = false
@@ -79,20 +90,19 @@ final class DictationController {
     }
 
     private func begin() async {
-        guard !isActive else { return }
-        isActive = true
+        guard !isActive, !isPreparingRecording else { return }
+        isPreparingRecording = true
+        defer { isPreparingRecording = false }
         hideWorkItem?.cancel()
         AppLog.dictation.info("begin")
 
         guard transcription.isModelDownloaded(settings.modelName) else {
             showError("No speech model yet. Open Mumble ▸ Settings ▸ Models to download one.", hideAfter: 4)
-            isActive = false
             return
         }
 
         guard await permissions.requestMicrophone() else {
             showError("Microphone access required. Enable it in System Settings ▸ Privacy ▸ Microphone.", hideAfter: 3)
-            isActive = false
             return
         }
 
@@ -106,28 +116,79 @@ final class DictationController {
 
         overlay.model.phase = .listening
         overlay.model.modelName = settings.modelName
+        overlay.model.levels = []
+        overlay.model.elapsed = 0
+        overlay.model.confirmedCaption = ""
+        overlay.model.draftCaption = ""
         overlay.setAppearance(settings.appearance)
         overlay.show()
 
+        let stream: AsyncStream<Float>
         do {
-            try await pipeline.start(recordingTo: url)
+            stream = try await pipeline.startRecording(to: url)
         } catch {
             AppLog.dictation.error("audio start failed: \(error.localizedDescription, privacy: .public)")
             showError(error.localizedDescription, hideAfter: 2.5)
+            await pipeline.stop()
             self.pipeline = nil
-            isActive = false
             return
         }
 
+        isActive = true
         startedAt = Date()
+        startElapsedTimer()
+        levelTask = Task { [weak self] in
+            var lastUpdate = ContinuousClock.now
+            for await level in stream {
+                let now = ContinuousClock.now
+                guard now - lastUpdate >= .milliseconds(66) else { continue }
+                lastUpdate = now
+                await self?.appendLevel(level)
+            }
+        }
+        startStreamingSession(pipeline: pipeline)
+    }
+
+    private func startStreamingSession(pipeline: AudioPipeline) {
+        let model = settings.modelName
+        let language = settings.language.isEmpty ? nil : settings.language
+        let session = StreamingTranscriptionSession(
+            transcription: transcription,
+            model: model,
+            language: language,
+            sampleProvider: { await pipeline.pcmSnapshot() },
+            onUpdate: { [weak self] (partial: PartialTranscript) in
+                Task { @MainActor in
+                    guard let self else { return }
+                    self.overlay.model.confirmedCaption = partial.confirmedText
+                    self.overlay.model.draftCaption = partial.draftText
+                    self.overlay.invalidateLayout()
+                }
+            }
+        )
+        streamingSession = session
+        Task { await session.start() }
     }
 
     private func finish() async {
+        while isPreparingRecording {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
         guard isActive, let pipeline else { return }
         isActive = false
         AppLog.dictation.info("finish")
 
+        stopElapsedTimer()
+        levelTask?.cancel()
+        levelTask = nil
+        overlay.model.levels = []
+        overlay.model.confirmedCaption = ""
+        overlay.model.draftCaption = ""
+        await streamingSession?.cancel()
+        streamingSession = nil
+
         overlay.model.phase = .transcribing
+        overlay.show()
         await pipeline.stop()
         self.pipeline = nil
 
@@ -216,5 +277,28 @@ final class DictationController {
         let item = DispatchWorkItem { [weak self] in self?.overlay.hide() }
         hideWorkItem = item
         DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: item)
+    }
+
+    private func appendLevel(_ level: Float) {
+        overlay.model.levels.append(level)
+        if overlay.model.levels.count > maxLevels {
+            overlay.model.levels.removeFirst(overlay.model.levels.count - maxLevels)
+        }
+    }
+
+    private func startElapsedTimer() {
+        elapsedTimer?.invalidate()
+        elapsedTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self, let started = self.startedAt else { return }
+                self.overlay.model.elapsed = Date().timeIntervalSince(started)
+            }
+        }
+    }
+
+    private func stopElapsedTimer() {
+        elapsedTimer?.invalidate()
+        elapsedTimer = nil
+        overlay.model.elapsed = 0
     }
 }

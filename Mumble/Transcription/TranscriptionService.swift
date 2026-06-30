@@ -80,6 +80,26 @@ final class TranscriptionService {
         return try await engine.transcribe(samples: samples, language: language)
     }
 
+    /// Resets streaming decode state at the start of a dictation hold.
+    func beginPartialSession(model: String) async throws {
+        try await ensureModelLoaded(model)
+        await engine.resetPartialState()
+    }
+
+    /// Incremental decode for live caption preview (does not change engine busy status).
+    func transcribePartial(
+        samples: [Float],
+        model: String,
+        language: String?
+    ) async throws -> PartialTranscript {
+        try await ensureModelLoaded(model)
+        return try await engine.transcribePartial(
+            samples: samples,
+            lastConfirmedEndSeconds: 0,
+            language: language
+        )
+    }
+
     /// Preloads the model in the background (called at launch).
     func warmUp(model: String) {
         Task { try? await ensureModelLoaded(model) }

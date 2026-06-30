@@ -39,8 +39,9 @@ struct DictationStatusPill: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
+        .background(Color.clear)
         .modifier(DictationPillChrome(forOverlay: forOverlay))
-        .fixedSize(horizontal: true, vertical: false)
+        .modifier(DictationPillSizing(forOverlay: forOverlay))
     }
 
     // MARK: - Content
@@ -108,10 +109,10 @@ struct DictationStatusPill: View {
     }
 
     /// Keeps transcribing / pasted pills the same width as the ready state.
-    private static let textMinWidth: CGFloat = 248
+    static let textMinWidth: CGFloat = 248
 }
 
-private struct DictationPillChrome: ViewModifier {
+struct DictationPillChrome: ViewModifier {
     var forOverlay = false
 
     func body(content: Content) -> some View {
@@ -127,12 +128,27 @@ private struct DictationPillChrome: ViewModifier {
                         lineWidth: 1
                     )
             )
-            .shadow(color: Theme.accent.opacity(0.12), radius: 14, y: 6)
 
         if forOverlay {
             bordered
         } else {
-            bordered.glassPanel(cornerRadius: 22)
+            bordered
+                .shadow(color: Theme.accent.opacity(0.12), radius: 14, y: 6)
+                .glassPanel(cornerRadius: 22)
+        }
+    }
+}
+
+struct DictationPillSizing: ViewModifier {
+    var forOverlay = false
+
+    func body(content: Content) -> some View {
+        if forOverlay {
+            content
+                .frame(width: OverlayLayout.width)
+                .frame(maxHeight: .infinity, alignment: .topLeading)
+        } else {
+            content.fixedSize(horizontal: true, vertical: false)
         }
     }
 }

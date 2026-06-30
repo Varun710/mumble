@@ -72,9 +72,9 @@ final class RecorderViewModel {
         self.pipeline = pipeline
         levels = []
 
-        let stream = await pipeline.levelStream()
+        let stream: AsyncStream<Float>
         do {
-            try await pipeline.start(recordingTo: url)
+            stream = try await pipeline.startRecording(to: url)
         } catch {
             errorMessage = error.localizedDescription
             self.pipeline = nil

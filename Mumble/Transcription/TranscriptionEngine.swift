@@ -16,6 +16,17 @@ struct TranscriptionOutput: Sendable {
     }
 }
 
+/// Live caption state surfaced during push-to-talk preview.
+struct PartialTranscript: Sendable {
+    let confirmedText: String
+    let draftText: String
+    let lastConfirmedEndSeconds: TimeInterval
+
+    nonisolated static var empty: PartialTranscript {
+        PartialTranscript(confirmedText: "", draftText: "", lastConfirmedEndSeconds: 0)
+    }
+}
+
 enum TranscriptionError: LocalizedError {
     case notReady
     case modelLoadFailed(String)
@@ -36,5 +47,11 @@ protocol TranscriptionEngine: Sendable {
     func prepare(model: String, downloadBase: URL, progress: @escaping @Sendable (Double) -> Void) async throws
     func transcribe(audioPath: String, language: String?) async throws -> TranscriptionOutput
     func transcribe(samples: [Float], language: String?) async throws -> TranscriptionOutput
+    func transcribePartial(
+        samples: [Float],
+        lastConfirmedEndSeconds: TimeInterval,
+        language: String?
+    ) async throws -> PartialTranscript
+    func resetPartialState() async
     func currentModel() async -> String?
 }
