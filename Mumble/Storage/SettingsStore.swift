@@ -57,9 +57,12 @@ final class SettingsStore {
     }
 
     private let defaults: UserDefaults
+    private static let legacyDefaultsDomain = "com.mumble.app"
+    private static let migrationKey = "settings.migratedLegacyDefaults"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        Self.migrateLegacyDefaultsIfNeeded(into: defaults)
         self.language = defaults.string(forKey: Keys.language) ?? "en"
         self.modelName = defaults.string(forKey: Keys.modelName) ?? Self.defaultModel
         self.autoPunctuation = defaults.object(forKey: Keys.autoPunctuation) as? Bool ?? true
@@ -82,6 +85,15 @@ final class SettingsStore {
     }
 
     static let defaultModel = "base"
+
+    private static func migrateLegacyDefaultsIfNeeded(into defaults: UserDefaults) {
+        guard !defaults.bool(forKey: migrationKey),
+              let legacy = UserDefaults.standard.persistentDomain(forName: legacyDefaultsDomain) else { return }
+        for (key, value) in legacy where key.hasPrefix("settings.") {
+            defaults.set(value, forKey: key)
+        }
+        defaults.set(true, forKey: migrationKey)
+    }
 
     private func persistDictionary() {
         if let data = try? JSONEncoder().encode(dictionaryEntries) {

@@ -10,6 +10,8 @@ enum DictationPillPhase: Equatable {
 /// Compact glass pill for push-to-talk status — shared across home hover and the floating overlay.
 struct DictationStatusPill: View {
     var phase: DictationPillPhase = .ready
+    /// When true, glass is provided by the AppKit `NSGlassEffectView` / `NSVisualEffectView` container.
+    var forOverlay = false
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -37,7 +39,7 @@ struct DictationStatusPill: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .modifier(DictationPillChrome())
+        .modifier(DictationPillChrome(forOverlay: forOverlay))
         .fixedSize(horizontal: true, vertical: false)
     }
 
@@ -110,9 +112,10 @@ struct DictationStatusPill: View {
 }
 
 private struct DictationPillChrome: ViewModifier {
+    var forOverlay = false
+
     func body(content: Content) -> some View {
-        content
-            .glassPanel(cornerRadius: 22)
+        let bordered = content
             .overlay(
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .strokeBorder(
@@ -125,5 +128,11 @@ private struct DictationPillChrome: ViewModifier {
                     )
             )
             .shadow(color: Theme.accent.opacity(0.12), radius: 14, y: 6)
+
+        if forOverlay {
+            bordered
+        } else {
+            bordered.glassPanel(cornerRadius: 22)
+        }
     }
 }

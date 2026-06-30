@@ -348,8 +348,20 @@ private struct PermissionsSettingsSection: View {
                 action: { env.permissions.requestInputMonitoring() },
                 openSettings: { env.permissions.openInputMonitoringSettings() }
             )
+            if PermissionsService.menuBarPermissionRequired {
+                permissionRow(
+                    title: "Menu Bar",
+                    detail: "Required to show the Mumble icon in the menu bar (macOS Tahoe). If Mumble is missing from System Settings → Menu Bar, quit and reopen the app.",
+                    state: env.permissions.menuBar,
+                    action: { env.permissions.requestMenuBar() },
+                    openSettings: { env.permissions.openMenuBarSettings() }
+                )
+            }
             HStack {
-                Button("Refresh status") { env.permissions.refresh(); env.dictation.startMonitoring() }
+                Button("Refresh status") {
+                    env.permissions.refresh()
+                    env.dictation.startMonitoring()
+                }
                     .controlSize(.small)
                 Button("Run setup again") { env.showOnboarding = true }
                     .controlSize(.small)
@@ -357,6 +369,10 @@ private struct PermissionsSettingsSection: View {
             .padding(.top, 4)
         }
         .onAppear { env.permissions.refresh() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            env.permissions.refresh()
+            env.dictation.startMonitoring()
+        }
     }
 
     private func permissionRow(title: String, detail: String, state: PermissionState, action: @escaping () -> Void, openSettings: @escaping () -> Void) -> some View {

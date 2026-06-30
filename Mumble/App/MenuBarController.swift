@@ -3,7 +3,6 @@ import Observation
 import SwiftUI
 
 extension Notification.Name {
-    static let mumbleOpenMainWindow = Notification.Name("mumbleOpenMainWindow")
     static let mumbleQuit = Notification.Name("mumbleQuit")
 }
 
@@ -16,18 +15,79 @@ final class MenuBarController {
     private var isPulsing = false
     private var lastMenuSnapshot: MenuSnapshot?
 
+    var hasStatusItem: Bool { statusItem != nil }
+
+    /// Whether the status item window is actually placed on the visible menu bar.
+    var isIconOnScreen: Bool {
+        guard let button = statusItem?.button else { return false }
+        return MenuBarVisibilityChecker.statusItemIsOnScreen(button: button)
+    }
+
     func install(env: AppEnvironment) {
         self.env = env
         guard statusItem == nil else { return }
 
+        MenuBarRegistration.prepareForStatusItem()
+        createStatusItem()
+        startObserving(env: env)
+        scheduleVisibilityRecovery()
+    }
+
+    /// Recreate the status item when macOS Tahoe parks it off-screen after allow-list changes.
+    func recreateIfNeeded() {
+        guard env != nil else { return }
+        guard !isIconOnScreen else { return }
+        AppLog.lifecycle.warning("menu bar icon not visible — recreating status item")
+        if let item = statusItem {
+            NSStatusBar.system.removeStatusItem(item)
+        }
+        statusItem = nil
+        createStatusItem()
+    }
+
+    private func createStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        item.button?.image = menuBarImage()
-        item.button?.image?.isTemplate = true
-        item.button?.toolTip = "Mumble"
+        item.autosaveName = "app.mumble.Mumble.statusItem"
+        item.isVisible = true
+        configureButton(item.button)
         item.menu = buildMenu()
         statusItem = item
+        logStatusItemGeometry(item, label: "installed")
 
-        startObserving(env: env)
+        if item.button == nil {
+            DispatchQueue.main.async { [weak self] in
+                guard let self, let item = self.statusItem else { return }
+                self.configureButton(item.button)
+                self.logStatusItemGeometry(item, label: "button retry")
+            }
+        }
+    }
+
+    private func scheduleVisibilityRecovery() {
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(1.5))
+            self?.recreateIfNeeded()
+        }
+    }
+
+    private func logStatusItemGeometry(_ item: NSStatusItem, label: String) {
+        guard let button = item.button, let window = button.window else {
+            AppLog.lifecycle.warning("menu bar status item \(label, privacy: .public): no button/window")
+            return
+        }
+        let frame = window.frame
+        AppLog.lifecycle.info(
+            "menu bar status item \(label, privacy: .public): visible=\(item.isVisible, privacy: .public) screen=\(window.screen != nil, privacy: .public) frame=\(NSStringFromRect(frame), privacy: .public) onScreen=\(self.isIconOnScreen, privacy: .public)"
+        )
+    }
+
+    private func configureButton(_ button: NSStatusBarButton?) {
+        guard let button else { return }
+        let image = menuBarImage()
+        image.isTemplate = true
+        button.image = image
+        button.imagePosition = .imageOnly
+        button.toolTip = "Mumble"
     }
 
     func uninstall() {
@@ -63,17 +123,23 @@ final class MenuBarController {
                     self.updateMenu()
                 }
 
+                env.permissions.menuBar = self.isIconOnScreen ? .granted : .denied
+
                 try? await Task.sleep(for: .milliseconds(120))
             }
         }
     }
 
-    private func menuBarImage() -> NSImage? {
+    private func menuBarImage() -> NSImage {
         if let image = NSImage(named: "MenuBarSymbol") {
             image.size = NSSize(width: 18, height: 18)
             return image
         }
-        return NSImage(systemSymbolName: "waveform.circle.fill", accessibilityDescription: "Mumble")
+        // Never return nil — an empty button is invisible on macOS 26.
+        let fallback = NSImage(systemSymbolName: "waveform.circle.fill", accessibilityDescription: "Mumble")
+            ?? NSImage(size: NSSize(width: 18, height: 18))
+        fallback.size = NSSize(width: 18, height: 18)
+        return fallback
     }
 
     private func buildMenu() -> NSMenu {
@@ -131,6 +197,9 @@ final class MenuBarController {
         if env.dictation.isActive { return "Listening… release to transcribe" }
         if env.showsMenuBarActivity { return "Working…" }
         if env.dictation.isMonitoring { return DictationShortcuts.holdHint }
+        if PermissionsService.menuBarPermissionRequired, env.permissions.menuBar != .granted {
+            return "Enable Menu Bar in Settings ▸ Permissions"
+        }
         return "Enable hotkey in Settings ▸ Permissions"
     }
 
@@ -167,6 +236,22 @@ final class MenuBarController {
     }
 
     @objc private func openMainWindow() {
+        MenuBarActions.openMainWindow()
+    }
+
+    @objc private func openSettings() {
+        MenuBarActions.openSettings()
+    }
+
+    @objc private func quit() {
+        NotificationCenter.default.post(name: .mumbleQuit, object: nil)
+        env?.shutdown()
+        NSApp.terminate(nil)
+    }
+}
+
+enum MenuBarActions {
+    static func openMainWindow() {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         if let window = NSApp.windows.first(where: { !($0 is NSPanel) && $0.canBecomeMain }) {
@@ -175,14 +260,9 @@ final class MenuBarController {
         ActivationPolicyController.recompute()
     }
 
-    @objc private func openSettings() {
+    static func openSettings() {
         NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-    }
-
-    @objc private func quit() {
-        NotificationCenter.default.post(name: .mumbleQuit, object: nil)
-        env?.shutdown()
-        NSApp.terminate(nil)
+        ActivationPolicyController.recompute()
     }
 }
 

@@ -10,9 +10,22 @@ struct HomeView: View {
     @State private var isHoveringPill = false
 
     private var showsStatusPill: Bool {
-        env.dictation.isMonitoring
-            && !env.dictation.isActive
-            && (isHoveringHero || isHoveringPill || env.dictation.isHotkeyPressed)
+        guard env.dictation.isMonitoring else { return false }
+        if env.dictation.isActive { return true }
+        return isHoveringHero || isHoveringPill || env.dictation.isHotkeyPressed
+    }
+
+    private var homePillPhase: DictationPillPhase {
+        switch env.overlay.model.phase {
+        case .transcribing:
+            return .transcribing(modelName: env.overlay.model.modelName)
+        case .done:
+            return .pasted
+        case .error:
+            return .error(env.overlay.model.message)
+        case .listening:
+            return .ready
+        }
     }
 
     var body: some View {
@@ -30,7 +43,7 @@ struct HomeView: View {
             }
 
             if showsStatusPill {
-                DictationStatusPill()
+                DictationStatusPill(phase: homePillPhase)
                     .onHover { isHoveringPill = $0 }
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .padding(.bottom, 20)

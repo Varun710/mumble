@@ -19,9 +19,13 @@ final class OverlayController {
     let model = OverlayModel()
     private var panel: OverlayPanel?
     private var hostingView: NSHostingView<OverlayRootView>?
+    private var glassContainer: NSView?
     private var appearance: AppearanceMode = .system
     private var lastSizedPhase: OverlayModel.Phase?
     private let signposter = OSSignposter(subsystem: AppLog.subsystem, category: "Overlay")
+
+    private static let minPanelWidth: CGFloat = 360
+    private static let minPanelHeight: CGFloat = 52
 
     func setAppearance(_ mode: AppearanceMode) {
         guard appearance != mode else { return }
@@ -64,8 +68,32 @@ final class OverlayController {
             let hosting = NSHostingView(rootView: makeRootView())
             hosting.translatesAutoresizingMaskIntoConstraints = true
             hostingView = hosting
-            panel.contentView = hosting
+
+            let container = makeGlassContainer(hosting: hosting)
+            container.translatesAutoresizingMaskIntoConstraints = true
+            glassContainer = container
+            panel.contentView = container
         }
+    }
+
+    private func makeGlassContainer(hosting: NSHostingView<OverlayRootView>) -> NSView {
+        if #available(macOS 26, *) {
+            let glass = NSGlassEffectView()
+            glass.style = .regular
+            glass.cornerRadius = 22
+            glass.contentView = hosting
+            return glass
+        }
+
+        let effect = NSVisualEffectView()
+        effect.material = .hudWindow
+        effect.blendingMode = .behindWindow
+        effect.state = .active
+        effect.wantsLayer = true
+        hosting.frame = effect.bounds
+        hosting.autoresizingMask = [.width, .height]
+        effect.addSubview(hosting)
+        return effect
     }
 
     private func refreshRootView() {
@@ -78,8 +106,14 @@ final class OverlayController {
 
     private func resizePanelToFit() {
         guard let hosting = hostingView, let panel else { return }
-        let size = hosting.fittingSize
-        panel.setContentSize(NSSize(width: max(size.width, 1), height: max(size.height, 1)))
+        hosting.layoutSubtreeIfNeeded()
+        let fit = hosting.fittingSize
+        let width = max(fit.width, Self.minPanelWidth)
+        let height = max(fit.height, Self.minPanelHeight)
+        let size = NSSize(width: width, height: height)
+        panel.setContentSize(size)
+        glassContainer?.setFrameSize(size)
+        hosting.setFrameSize(hosting.fittingSize)
     }
 
     private func position(_ panel: OverlayPanel) {

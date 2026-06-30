@@ -107,6 +107,7 @@ final class DictationController {
         overlay.model.phase = .listening
         overlay.model.modelName = settings.modelName
         overlay.setAppearance(settings.appearance)
+        overlay.show()
 
         do {
             try await pipeline.start(recordingTo: url)
@@ -118,7 +119,6 @@ final class DictationController {
             return
         }
 
-        overlay.show()
         startedAt = Date()
     }
 

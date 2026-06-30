@@ -15,6 +15,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let env = AppEnvironment()
     private var didBootstrap = false
 
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        if #available(macOS 26, *) {
+            // Tahoe: register the MenuBarExtra from accessory policy before the main window promotes to regular.
+            MenuBarRegistration.prepareForStatusItem()
+        }
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         #if DEBUG
         installUncaughtExceptionLogger()
@@ -33,7 +40,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         center.addObserver(forName: .mumbleQuit, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.env.shutdown() }
         }
+        center.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.env.menuBar.recreateIfNeeded()
+                self?.env.permissions.refresh()
+            }
+        }
         ActivationPolicyController.recompute()
+        env.permissions.refresh()
     }
 
     func bootstrapIfNeeded() {

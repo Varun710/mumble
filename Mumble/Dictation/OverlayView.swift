@@ -7,7 +7,7 @@ struct OverlayView: View {
     @State private var appear = false
 
     var body: some View {
-        DictationStatusPill(phase: pillPhase)
+        DictationStatusPill(phase: pillPhase, forOverlay: true)
             .scaleEffect(appear ? 1 : 0.9)
             .opacity(appear ? 1 : 0)
             .onAppear {

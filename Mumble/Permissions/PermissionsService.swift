@@ -9,19 +9,37 @@ enum PermissionState: Equatable {
     case notDetermined
 }
 
-/// Tracks and requests the three permissions the app needs:
-/// Microphone, Accessibility (PostEvent, for synthesized paste), and Input Monitoring (global hotkey).
+/// Tracks and requests the permissions the app needs:
+/// Microphone, Accessibility (PostEvent, for synthesized paste), Input Monitoring (global hotkey),
+/// and Menu Bar allow-list (macOS 26+).
 @MainActor
 @Observable
 final class PermissionsService {
     var microphone: PermissionState = .notDetermined
     var accessibility: PermissionState = .notDetermined
     var inputMonitoring: PermissionState = .notDetermined
+    var menuBar: PermissionState = {
+        if #available(macOS 26, *) { return .notDetermined }
+        return .granted
+    }()
+
+    private weak var menuBarController: MenuBarController?
+
+    func bind(menuBar: MenuBarController) {
+        menuBarController = menuBar
+    }
+
+    /// Whether the Menu Bar allow-list applies on this macOS version.
+    static var menuBarPermissionRequired: Bool {
+        if #available(macOS 26, *) { return true }
+        return false
+    }
 
     func refresh() {
         microphone = Self.microphoneState()
         accessibility = AXIsProcessTrusted() ? .granted : .denied
         inputMonitoring = Self.inputMonitoringState()
+        menuBar = Self.menuBarState(menuBar: menuBarController)
     }
 
     // MARK: Microphone
@@ -73,6 +91,21 @@ final class PermissionsService {
         return granted
     }
 
+    // MARK: Menu Bar (macOS 26+ allow-list)
+
+    static func menuBarState(menuBar: MenuBarController?) -> PermissionState {
+        guard menuBarPermissionRequired else { return .granted }
+        return MenuBarVisibilityChecker.isAllowed(menuBar: menuBar) ? .granted : .denied
+    }
+
+    /// Opens System Settings → Menu Bar so the user can allow Mumble.
+    @discardableResult
+    func requestMenuBar() -> Bool {
+        openMenuBarSettings()
+        menuBar = Self.menuBarState(menuBar: menuBarController)
+        return menuBar == .granted
+    }
+
     // MARK: Settings deep links
 
     func openAccessibilitySettings() {
@@ -85,6 +118,14 @@ final class PermissionsService {
 
     func openMicrophoneSettings() {
         open("x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
+    }
+
+    func openMenuBarSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.MenuBarSettings") {
+            NSWorkspace.shared.open(url)
+            return
+        }
+        open("x-apple.systempreferences:com.apple.ControlCenter-Settings.extension?MenuBar")
     }
 
     private func open(_ urlString: String) {

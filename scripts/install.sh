@@ -66,6 +66,9 @@ cp -R "$BUILT_APP" "$DEST/"
 
 xattr -dr com.apple.quarantine "$DEST/$APP_NAME.app" 2>/dev/null || true
 
+echo "==> Registering with Launch Services"
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$DEST/$APP_NAME.app"
+
 echo "==> Launching $APP_NAME"
 open "$DEST/$APP_NAME.app"
 

@@ -3,7 +3,9 @@ import Foundation
 /// On-disk layout under ~/Library/Application Support/<bundle id>/.
 /// Only relative file names are stored in the DB; absolute URLs are rebuilt here.
 nonisolated enum Paths {
-    static var bundleID: String { Bundle.main.bundleIdentifier ?? "com.mumble.app" }
+    /// Keep data under the original support folder when the bundle id changes.
+    static let supportBundleID = "com.mumble.app"
+    static var bundleID: String { supportBundleID }
 
     static var root: URL {
         let base = (try? FileManager.default.url(

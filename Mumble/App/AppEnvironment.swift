@@ -49,10 +49,16 @@ final class AppEnvironment {
 
     /// Called once after launch.
     func bootstrap() {
-        permissions.refresh()
         modelManager.refreshAvailability()
         dictation.startMonitoring()
+
+        MenuBarRegistration.prepareForStatusItem()
+        MenuBarRegistration.clearStaleStatusItemDefaults()
         menuBar.install(env: self)
+        permissions.bind(menuBar: menuBar)
+
+        permissions.refresh()
+        MenuBarGuidance.checkAfterLaunch(menuBar: menuBar, permissions: permissions)
         overlay.setAppearance(settings.appearance)
 
         if case .ready = modelManager.state(for: settings.modelName) {

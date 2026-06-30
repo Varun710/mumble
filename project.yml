@@ -30,7 +30,7 @@ targets:
     settings:
       base:
         PRODUCT_NAME: Mumble
-        PRODUCT_BUNDLE_IDENTIFIER: com.mumble.app
+        PRODUCT_BUNDLE_IDENTIFIER: app.mumble.Mumble
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
         GENERATE_INFOPLIST_FILE: NO

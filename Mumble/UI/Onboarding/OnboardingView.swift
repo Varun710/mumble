@@ -106,6 +106,11 @@ struct OnboardingView: View {
             permissionRow("Accessibility", "Paste text into other apps", env.permissions.accessibility,
                           request: { env.permissions.requestAccessibility(prompt: true) },
                           open: { env.permissions.openAccessibilitySettings() })
+            if PermissionsService.menuBarPermissionRequired {
+                permissionRow("Menu Bar", "Show the Mumble icon in the menu bar", env.permissions.menuBar,
+                              request: { env.permissions.requestMenuBar() },
+                              open: { env.permissions.openMenuBarSettings() })
+            }
 
             Button("Refresh status") {
                 env.permissions.refresh()
