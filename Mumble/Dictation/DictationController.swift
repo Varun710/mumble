@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import Observation
+import AppKit
 
 /// Global push-to-talk dictation: hold the **Right Option** key to record,
 /// release to transcribe, clean, and paste into the active app. Also supports a
@@ -10,6 +11,7 @@ import Observation
 final class DictationController {
     private let transcription: TranscriptionService
     private let settings: SettingsStore
+    private let interpreter: Interpreter
     private let permissions: PermissionsService
     private let overlay: OverlayController
     private let container: ModelContainer
@@ -32,9 +34,10 @@ final class DictationController {
     private var isPreparingRecording = false
     private let maxLevels = 48
 
-    init(transcription: TranscriptionService, settings: SettingsStore, permissions: PermissionsService, overlay: OverlayController, container: ModelContainer) {
+    init(transcription: TranscriptionService, settings: SettingsStore, interpreter: Interpreter, permissions: PermissionsService, overlay: OverlayController, container: ModelContainer) {
         self.transcription = transcription
         self.settings = settings
+        self.interpreter = interpreter
         self.permissions = permissions
         self.overlay = overlay
         self.container = container
@@ -50,6 +53,7 @@ final class DictationController {
         monitor.onPress = { [weak self] in
             Task { @MainActor in
                 self?.isHotkeyPressed = true
+                await self?.interpreter.prewarm()
                 await self?.begin()
             }
         }
@@ -57,6 +61,13 @@ final class DictationController {
             Task { @MainActor in
                 await self?.finish()
                 self?.isHotkeyPressed = false
+            }
+        }
+        monitor.onChordCancelled = { [weak self] in
+            Task { @MainActor in
+                guard let self, self.isActive else { return }
+                await self.finish(cancelledByChord: true)
+                self.isHotkeyPressed = false
             }
         }
         hotkeyActive = monitor.start()
@@ -170,7 +181,7 @@ final class DictationController {
         Task { await session.start() }
     }
 
-    private func finish() async {
+    private func finish(cancelledByChord: Bool = false) async {
         while isPreparingRecording {
             try? await Task.sleep(for: .milliseconds(10))
         }
@@ -187,13 +198,21 @@ final class DictationController {
         await streamingSession?.cancel()
         streamingSession = nil
 
-        overlay.model.phase = .transcribing
-        overlay.show()
         await pipeline.stop()
         self.pipeline = nil
 
         let duration = startedAt.map { Date().timeIntervalSince($0) } ?? 0
         startedAt = nil
+
+        if cancelledByChord {
+            if let url = currentFileURL { try? FileManager.default.removeItem(at: url) }
+            overlay.hide()
+            AppLog.dictation.info("finish cancelled by modifier chord")
+            return
+        }
+
+        overlay.model.phase = .transcribing
+        overlay.show()
 
         let model = settings.modelName
         let language = settings.language
@@ -205,7 +224,12 @@ final class DictationController {
 
         do {
             let output = try await transcription.transcribeFile(at: url, model: model, language: language)
-            let cleaned = settings.textCleaner.clean(output.text)
+            let style = settings.resolvedStylePreset(bundleID: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
+            let cleaned = await interpreter.interpret(
+                InterpretInput(from: output),
+                style: style,
+                enabled: settings.interpreterEnabled
+            )
 
             if cleaned.isEmpty {
                 showError("No speech detected", hideAfter: 1.5)

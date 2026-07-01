@@ -14,6 +14,7 @@ final class AppEnvironment {
     let recorder: RecorderViewModel
     let dictation: DictationController
     let overlay: OverlayController
+    let interpreter: Interpreter
 
     /// Set to true to force-present the onboarding flow (e.g. "Run setup again").
     var showOnboarding = false
@@ -25,6 +26,11 @@ final class AppEnvironment {
         let modelManager = ModelManager()
         let transcription = TranscriptionService(modelManager: modelManager)
         let overlay = OverlayController()
+        let interpreter = Interpreter(
+            backend: InterpreterBackendFactory.make(),
+            cleanup: settings.textCleaner,
+            snippetExpander: SnippetExpander(store: SnippetStore(entries: settings.snippets))
+        )
 
         self.container = container
         self.settings = settings
@@ -32,15 +38,18 @@ final class AppEnvironment {
         self.modelManager = modelManager
         self.transcription = transcription
         self.overlay = overlay
+        self.interpreter = interpreter
         self.recorder = RecorderViewModel(
             transcription: transcription,
             settings: settings,
+            interpreter: interpreter,
             permissions: permissions,
             container: container
         )
         self.dictation = DictationController(
             transcription: transcription,
             settings: settings,
+            interpreter: interpreter,
             permissions: permissions,
             overlay: overlay,
             container: container
@@ -62,7 +71,7 @@ final class AppEnvironment {
         overlay.setAppearance(settings.appearance)
 
         if case .ready = modelManager.state(for: settings.modelName) {
-            transcription.warmUp(model: settings.modelName)
+            transcription.warmUp(model: settings.modelName, language: settings.language)
         }
     }
 
@@ -86,6 +95,23 @@ final class AppEnvironment {
             || recorder.isProcessing
     }
 
+    /// Live speech-recognition activity for the home screen status banner.
+    var homeASRStatus: ASRHomeStatus? {
+        if dictation.isActive {
+            return .listening(elapsed: overlay.model.elapsed)
+        }
+        if overlay.model.phase == .transcribing {
+            return .transcribing(modelName: overlay.model.modelName)
+        }
+        if recorder.isRecording {
+            return .recording
+        }
+        if recorder.isProcessing || transcription.status.isBusy {
+            return .transcribing(modelName: settings.modelName)
+        }
+        return nil
+    }
+
     let menuBar = MenuBarController()
 
     func finishOnboarding() {
@@ -95,7 +121,7 @@ final class AppEnvironment {
         dictation.startMonitoring()
         permissions.refresh()
         if case .ready = modelManager.state(for: settings.modelName) {
-            transcription.warmUp(model: settings.modelName)
+            transcription.warmUp(model: settings.modelName, language: settings.language)
         }
     }
 }

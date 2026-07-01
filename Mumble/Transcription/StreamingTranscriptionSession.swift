@@ -48,7 +48,7 @@ actor StreamingTranscriptionSession {
 
     private func run() async {
         do {
-            try await transcription.beginPartialSession(model: model)
+            try await transcription.beginPartialSession(model: model, language: language)
         } catch {
             return
         }

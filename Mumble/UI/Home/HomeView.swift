@@ -13,10 +13,15 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 24) {
                 modelSelectorSection
                 header
+                if let asrStatus = env.homeASRStatus {
+                    ASRHomeStatusBanner(status: asrStatus)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
                 hero
                 recentGrid
             }
             .padding(28)
+            .animation(.spring(response: 0.32, dampingFraction: 0.82), value: env.homeASRStatus)
         }
     }
 

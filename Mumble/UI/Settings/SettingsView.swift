@@ -16,6 +16,7 @@ struct SettingsView: View {
         case general = "General"
         case recording = "Recording"
         case dictation = "Dictation"
+        case intelligence = "Intelligence"
         case models = "Models"
         case dictionary = "Dictionary"
         case permissions = "Permissions"
@@ -25,6 +26,7 @@ struct SettingsView: View {
             case .general: return "paintbrush"
             case .recording: return "waveform"
             case .dictation: return "text.cursor"
+            case .intelligence: return "brain"
             case .models: return "cpu"
             case .dictionary: return "character.book.closed"
             case .permissions: return "lock.shield"
@@ -62,6 +64,7 @@ struct SettingsView: View {
                     case .general: GeneralSettingsSection()
                     case .recording: RecordingSettingsSection()
                     case .dictation: DictationSettingsSection()
+                    case .intelligence: IntelligenceSettingsSection()
                     case .models: ModelsSettingsSection()
                     case .dictionary: DictionarySettingsSection()
                     case .permissions: PermissionsSettingsSection()
@@ -276,6 +279,114 @@ private struct ModelsSettingsSection: View {
 
     private func download(_ model: ModelInfo) {
         env.modelManager.download(model.name)
+    }
+}
+
+// MARK: - Intelligence
+
+private struct IntelligenceSettingsSection: View {
+    @Environment(AppEnvironment.self) private var env
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var newTrigger = ""
+    @State private var newExpansion = ""
+
+    var body: some View {
+        @Bindable var settings = env.settings
+        VStack(alignment: .leading, spacing: SettingsMetrics.sectionSpacing) {
+            SettingsGroup("Interpreter") {
+                HStack(spacing: 8) {
+                    Image(systemName: InterpreterBackendFactory.isAnyAvailable ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                        .foregroundStyle(InterpreterBackendFactory.isAnyAvailable ? Theme.success : Theme.recording)
+                    Text(interpreterStatusLabel)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.textSecondary(for: colorScheme))
+                }
+                ToggleRow("Smart dictation (corrections & commands)", isOn: $settings.interpreterEnabled)
+                    .disabled(!InterpreterBackendFactory.isAnyAvailable)
+                SettingsFootnote("Resolves self-corrections, voice commands, and style-aware cleanup on-device. Falls back to deterministic cleanup on failure.")
+            }
+
+            SettingsGroup("Style") {
+                ToggleRow("Auto style by app", isOn: $settings.autoStyleByApp)
+                LabeledRow("Manual preset") {
+                    BelowDropdownPicker(
+                        selection: $settings.stylePreset,
+                        values: StylePreset.allCases,
+                        minWidth: 140
+                    ) { preset in
+                        Text(preset.label).font(.system(size: 12, weight: .medium))
+                    } rowContent: { preset, _ in
+                        Text(preset.label)
+                    }
+                }
+                .disabled(settings.autoStyleByApp)
+            }
+
+            SettingsGroup("Add snippet") {
+                Text("Speak a trigger phrase to insert expanded text before interpretation.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.textSecondary(for: colorScheme))
+                HStack(spacing: 8) {
+                    TextField("Trigger phrase…", text: $newTrigger)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: .infinity)
+                    Image(systemName: "arrow.right")
+                        .foregroundStyle(Theme.textTertiary(for: colorScheme))
+                    TextField("Expansion…", text: $newExpansion)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: .infinity)
+                    Button("Add") { addSnippet() }
+                        .disabled(newTrigger.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+
+            SettingsGroup("Snippets") {
+                if settings.snippets.isEmpty {
+                    Text("No snippets yet.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.textTertiary(for: colorScheme))
+                } else {
+                    VStack(spacing: 8) {
+                        ForEach(settings.snippets) { snippet in
+                            HStack {
+                                Text(snippet.trigger).font(.system(size: 12, weight: .medium))
+                                Image(systemName: "arrow.right")
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(Theme.textTertiary(for: colorScheme))
+                                Text(snippet.expansion)
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(Theme.textSecondary(for: colorScheme))
+                                    .lineLimit(2)
+                                Spacer()
+                                Button { remove(snippet) } label: { Image(systemName: "xmark.circle.fill") }
+                                    .buttonStyle(.plain)
+                                    .foregroundStyle(Theme.textTertiary(for: colorScheme))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var interpreterStatusLabel: String {
+        if InterpreterBackendFactory.isAnyAvailable {
+            return "On-device interpreter available (Apple Intelligence or MLX)."
+        }
+        return "Interpreter unavailable. Enable Apple Intelligence on macOS 26+ or download an MLX model."
+    }
+
+    private func addSnippet() {
+        let trigger = newTrigger.trimmingCharacters(in: .whitespaces)
+        let expansion = newExpansion.trimmingCharacters(in: .whitespaces)
+        guard !trigger.isEmpty else { return }
+        env.settings.snippets.append(Snippet(trigger: trigger, expansion: expansion))
+        newTrigger = ""
+        newExpansion = ""
+    }
+
+    private func remove(_ snippet: Snippet) {
+        env.settings.snippets.removeAll { $0.id == snippet.id }
     }
 }
 

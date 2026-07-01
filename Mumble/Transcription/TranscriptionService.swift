@@ -33,11 +33,18 @@ final class TranscriptionService {
     private(set) var status: EngineStatus = .idle
     private(set) var loadedModel: String?
 
-    private let engine: any TranscriptionEngine
+    private let whisperEngine: WhisperKitEngine
+    private let parakeetEngine: ParakeetEngine
     private let modelManager: ModelManager
+    private var activeEngineKind: TranscriptionEngineKind?
 
-    init(engine: any TranscriptionEngine = WhisperKitEngine(), modelManager: ModelManager) {
-        self.engine = engine
+    init(
+        whisperEngine: WhisperKitEngine = WhisperKitEngine(),
+        parakeetEngine: ParakeetEngine = ParakeetEngine(),
+        modelManager: ModelManager
+    ) {
+        self.whisperEngine = whisperEngine
+        self.parakeetEngine = parakeetEngine
         self.modelManager = modelManager
     }
 
@@ -46,10 +53,20 @@ final class TranscriptionService {
         modelManager.isReady(model)
     }
 
+    private func engine(for model: String, language: String?) -> any TranscriptionEngine {
+        switch TranscriptionRouter.engineKind(for: model, language: language) {
+        case .parakeet: return parakeetEngine
+        case .whisper: return whisperEngine
+        }
+    }
+
     /// Ensures the configured model is loaded into the engine for transcription.
-    /// Assumes the model is already downloaded (callers guard with `isModelDownloaded`).
-    func ensureModelLoaded(_ model: String) async throws {
-        if loadedModel == model { return }
+    func ensureModelLoaded(_ model: String, language: String?) async throws {
+        let kind = TranscriptionRouter.engineKind(for: model, language: language)
+        let engine = engine(for: model, language: language)
+
+        if loadedModel == model, activeEngineKind == kind { return }
+
         status = .loadingModel(0)
         do {
             try await engine.prepare(model: model, downloadBase: Paths.modelsDir) { [weak self] fraction in
@@ -58,6 +75,7 @@ final class TranscriptionService {
                 }
             }
             loadedModel = model
+            activeEngineKind = kind
             modelManager.setReady(model)
             status = .ready
         } catch {
@@ -67,32 +85,35 @@ final class TranscriptionService {
     }
 
     func transcribeFile(at url: URL, model: String, language: String?) async throws -> TranscriptionOutput {
-        try await ensureModelLoaded(model)
+        try await ensureModelLoaded(model, language: language)
         status = .transcribing
         defer { status = .ready }
+        let engine = engine(for: model, language: language)
         return try await engine.transcribe(audioPath: url.path, language: language)
     }
 
     func transcribeSamples(_ samples: [Float], model: String, language: String?) async throws -> TranscriptionOutput {
-        try await ensureModelLoaded(model)
+        try await ensureModelLoaded(model, language: language)
         status = .transcribing
         defer { status = .ready }
+        let engine = engine(for: model, language: language)
         return try await engine.transcribe(samples: samples, language: language)
     }
 
     /// Resets streaming decode state at the start of a dictation hold.
-    func beginPartialSession(model: String) async throws {
-        try await ensureModelLoaded(model)
+    func beginPartialSession(model: String, language: String?) async throws {
+        try await ensureModelLoaded(model, language: language)
+        let engine = engine(for: model, language: language)
         await engine.resetPartialState()
     }
 
-    /// Incremental decode for live caption preview (does not change engine busy status).
+    /// Incremental decode for live caption preview.
     func transcribePartial(
         samples: [Float],
         model: String,
         language: String?
     ) async throws -> PartialTranscript {
-        try await ensureModelLoaded(model)
+        let engine = engine(for: model, language: language)
         return try await engine.transcribePartial(
             samples: samples,
             lastConfirmedEndSeconds: 0,
@@ -101,7 +122,8 @@ final class TranscriptionService {
     }
 
     /// Preloads the model in the background (called at launch).
-    func warmUp(model: String) {
-        Task { try? await ensureModelLoaded(model) }
+    func warmUp(model: String, language: String? = nil) {
+        Task { try? await ensureModelLoaded(model, language: language) }
     }
+
 }

@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import Observation
+import AppKit
 
 /// Drives the in-window recording flow: capture -> transcribe -> clean -> persist.
 @MainActor
@@ -18,6 +19,7 @@ final class RecorderViewModel {
 
     private let transcription: TranscriptionService
     private let settings: SettingsStore
+    private let interpreter: Interpreter
     private let permissions: PermissionsService
     private let container: ModelContainer
 
@@ -30,9 +32,10 @@ final class RecorderViewModel {
 
     private let maxLevels = 70
 
-    init(transcription: TranscriptionService, settings: SettingsStore, permissions: PermissionsService, container: ModelContainer) {
+    init(transcription: TranscriptionService, settings: SettingsStore, interpreter: Interpreter, permissions: PermissionsService, container: ModelContainer) {
         self.transcription = transcription
         self.settings = settings
+        self.interpreter = interpreter
         self.permissions = permissions
         self.container = container
     }
@@ -141,7 +144,27 @@ final class RecorderViewModel {
 
     private func save(fileName: String, duration: TimeInterval, output: TranscriptionOutput, model: String, language: String) {
         let cleaner = settings.textCleaner
-        let cleaned = cleaner.clean(output.text)
+        let style = settings.resolvedStylePreset(bundleID: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
+        Task { @MainActor in
+            let cleaned = await interpreter.interpret(
+                InterpretInput(from: output),
+                style: style,
+                enabled: settings.interpreterEnabled
+            )
+            await saveRecording(fileName: fileName, duration: duration, output: output, cleaned: cleaned, model: model, language: language, cleaner: cleaner)
+        }
+    }
+
+    @MainActor
+    private func saveRecording(
+        fileName: String,
+        duration: TimeInterval,
+        output: TranscriptionOutput,
+        cleaned: String,
+        model: String,
+        language: String,
+        cleaner: TextCleaner
+    ) async {
         let waveform = WaveformAnalyzer.buckets(fileURL: Paths.audioURL(for: fileName), buckets: 220)
 
         let recording = Recording(

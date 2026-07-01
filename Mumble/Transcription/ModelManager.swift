@@ -10,6 +10,7 @@ struct ModelInfo: Identifiable, Hashable, Sendable {
     let detail: String
     let approxSize: String
     let recommended: Bool
+    let engine: TranscriptionEngineKind
 }
 
 enum ModelDownloadState: Equatable {
@@ -23,15 +24,26 @@ enum ModelDownloadState: Equatable {
 @MainActor
 @Observable
 final class ModelManager {
-    /// Curated set surfaced in the UI. `name` values match WhisperKit identifiers.
+    /// Curated set surfaced in the UI. `name` values match WhisperKit identifiers or Parakeet IDs.
     static let catalog: [ModelInfo] = [
-        ModelInfo(name: "base", displayName: "Base", detail: "Fast, lightweight. Good for quick dictation.", approxSize: "~145 MB", recommended: false),
-        ModelInfo(name: "base.en", displayName: "Base (English)", detail: "English-only, fastest.", approxSize: "~145 MB", recommended: false),
-        ModelInfo(name: "small", displayName: "Small", detail: "Balanced speed and accuracy.", approxSize: "~480 MB", recommended: false),
-        ModelInfo(name: "small.en", displayName: "Small (English)", detail: "English-only, balanced.", approxSize: "~480 MB", recommended: false),
-        ModelInfo(name: "large-v3-v20240930_turbo", displayName: "Large v3 Turbo", detail: "Best speed/accuracy on Apple Silicon.", approxSize: "~1.5 GB", recommended: true),
-        ModelInfo(name: "large-v3-v20240930_626MB", displayName: "Large v3 (Compressed)", detail: "Maximum accuracy, compressed.", approxSize: "~626 MB", recommended: false),
+        ModelInfo(name: ParakeetEngine.modelID, displayName: "Parakeet TDT v3", detail: "Fast English/European dictation with word timings.", approxSize: "~600 MB", recommended: true, engine: .parakeet),
+        ModelInfo(name: "base", displayName: "Base", detail: "Fast, lightweight. Good for quick dictation.", approxSize: "~145 MB", recommended: false, engine: .whisper),
+        ModelInfo(name: "base.en", displayName: "Base (English)", detail: "English-only, fastest.", approxSize: "~145 MB", recommended: false, engine: .whisper),
+        ModelInfo(name: "small", displayName: "Small", detail: "Balanced speed and accuracy.", approxSize: "~480 MB", recommended: false, engine: .whisper),
+        ModelInfo(name: "small.en", displayName: "Small (English)", detail: "English-only, balanced.", approxSize: "~480 MB", recommended: false, engine: .whisper),
+        ModelInfo(name: "large-v3-v20240930_turbo", displayName: "Large v3 Turbo", detail: "Best speed/accuracy on Apple Silicon.", approxSize: "~1.5 GB", recommended: false, engine: .whisper),
+        ModelInfo(name: "large-v3-v20240930_626MB", displayName: "Large v3 (Compressed)", detail: "Maximum accuracy, compressed.", approxSize: "~626 MB", recommended: false, engine: .whisper),
     ]
+
+    static func isParakeetModel(_ name: String) -> Bool {
+        name == ParakeetEngine.modelID
+    }
+
+    private static let parakeetReadyKey = "models.parakeet.ready"
+
+    static func engineKind(for name: String) -> TranscriptionEngineKind {
+        catalog.first { $0.name == name }?.engine ?? .whisper
+    }
 
     var states: [String: ModelDownloadState] = [:]
 
@@ -74,19 +86,33 @@ final class ModelManager {
         states[name] = .downloading(0)
         Task {
             do {
-                _ = try await WhisperKit.download(
-                    variant: name,
-                    downloadBase: Paths.modelsDir,
-                    from: "argmaxinc/whisperkit-coreml",
-                    progressCallback: { progress in
+                if Self.isParakeetModel(name) {
+                    let engine = ParakeetEngine()
+                    try await engine.prepare(model: name, downloadBase: Paths.modelsDir) { progress in
                         Task { @MainActor in
                             if case .downloading = self.states[name] {
-                                self.states[name] = .downloading(progress.fractionCompleted)
+                                self.states[name] = .downloading(progress)
                             }
                         }
                     }
-                )
+                } else {
+                    _ = try await WhisperKit.download(
+                        variant: name,
+                        downloadBase: Paths.modelsDir,
+                        from: "argmaxinc/whisperkit-coreml",
+                        progressCallback: { progress in
+                            Task { @MainActor in
+                                if case .downloading = self.states[name] {
+                                    self.states[name] = .downloading(progress.fractionCompleted)
+                                }
+                            }
+                        }
+                    )
+                }
                 self.states[name] = .ready
+                if Self.isParakeetModel(name) {
+                    UserDefaults.standard.set(true, forKey: Self.parakeetReadyKey)
+                }
             } catch {
                 self.states[name] = .failed(error.localizedDescription)
             }
@@ -118,6 +144,9 @@ final class ModelManager {
     }
 
     private func isDownloaded(_ name: String, fm: FileManager) -> Bool {
+        if Self.isParakeetModel(name) {
+            return UserDefaults.standard.bool(forKey: Self.parakeetReadyKey)
+        }
         // WhisperKit stores each model in a folder like "openai_whisper-<variant>"
         // somewhere under the download base. Search for it (and require it to be non-empty).
         let folderNames: Set<String> = ["openai_whisper-\(name)", name]

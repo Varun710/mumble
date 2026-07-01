@@ -126,14 +126,15 @@ actor WhisperKitEngine: TranscriptionEngine {
             task: .transcribe,
             language: language,
             skipSpecialTokens: true,
-            withoutTimestamps: true,
-            wordTimestamps: false,
+            withoutTimestamps: false,
+            wordTimestamps: true,
             chunkingStrategy: .vad
         )
     }
 
     private nonisolated static func map(_ results: [TranscriptionResult]) -> TranscriptionOutput {
         var segments: [TranscriptSegment] = []
+        var words: [TranscriptWord] = []
         var language: String?
         for result in results {
             if language == nil { language = result.language }
@@ -145,6 +146,17 @@ actor WhisperKitEngine: TranscriptionEngine {
                     end: TimeInterval(seg.end),
                     text: cleaned
                 ))
+                if let segWords = seg.words {
+                    for timing in segWords {
+                        let word = TranscriptDisplayText.sanitize(timing.word)
+                        guard !word.isEmpty, !word.hasPrefix("<|") else { continue }
+                        words.append(TranscriptWord(
+                            text: word,
+                            start: TimeInterval(timing.start),
+                            end: TimeInterval(timing.end)
+                        ))
+                    }
+                }
             }
         }
 
@@ -153,6 +165,6 @@ actor WhisperKitEngine: TranscriptionEngine {
             .joined(separator: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        return TranscriptionOutput(text: text, segments: segments, language: language)
+        return TranscriptionOutput(text: text, segments: segments, words: words, language: language)
     }
 }

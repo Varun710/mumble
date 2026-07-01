@@ -1,6 +1,6 @@
 # Mumble
 
-A local-first macOS app for voice transcription and dictation. Everything runs on your Mac with [WhisperKit](https://github.com/argmaxinc/argmax-oss-swift) — no account, no cloud, no audio ever leaves your device.
+A local-first macOS app for voice transcription and dictation. Everything runs on your Mac — no account, no cloud, no audio ever leaves your device. Speech recognition uses [Parakeet TDT](https://github.com/FluidInference/FluidAudio) (fast, word-timed) or [WhisperKit](https://github.com/argmaxinc/argmax-oss-swift) (multilingual fallback). Optional on-device intelligence resolves self-corrections, voice commands, and style-aware cleanup via Apple Foundation Models (macOS 26+) with a deterministic fallback when AI is off or unavailable.
 
 <p align="center">
   <img src="docs/light-mode.png" alt="Mumble home screen in light mode" width="49%" />
@@ -26,7 +26,7 @@ This builds a Release app, signs it, copies `Mumble.app` to `/Applications`, and
 On first launch, onboarding walks you through:
 
 1. **Permissions** — Microphone, Accessibility (for pasting), and Input Monitoring (for the global hotkey).
-2. **Model download** — Pick a Whisper model. **Base** (~145 MB) is the fast default; **Large v3 Turbo** is the most accurate on Apple Silicon.
+2. **Model download** — **Parakeet TDT v3** (~600 MB) is the recommended default for English/European dictation (fast, word-level timestamps). Whisper models remain available for multilingual use and as a fallback for languages Parakeet does not cover.
 
 After setup, hold **Right Option (⌥)** to dictate, or open the main window from the menu bar to browse recordings.
 
@@ -34,15 +34,18 @@ After setup, hold **Right Option (⌥)** to dictate, or open the main window fro
 
 | Area | What you get |
 | --- | --- |
-| **Dictation** | Global push-to-talk with a floating overlay; paste cleaned text into any app |
+| **Dictation** | Global push-to-talk with a floating overlay and live captions; paste cleaned text into any app |
 | **Recording** | Record orb, live waveform, automatic transcription |
 | **Transcripts** | Timestamped segments, waveform scrubbing, tap-to-seek, variable playback speed |
+| **ASR engines** | Parakeet TDT v3 (default for European languages, word timings) or WhisperKit (multilingual) |
 | **Cleanup** | Filler-word removal, repeated-word collapsing, punctuation normalization, custom dictionary |
+| **Intelligence** | Optional on-device interpreter for self-corrections, voice commands (`new paragraph`, `strike that`, etc.), and style presets — falls back to deterministic cleanup on failure |
+| **Snippets** | Trigger phrases that expand to longer text before interpretation |
 | **Library** | SwiftData storage for recordings, dictations, and notes — all local under `~/Library/Application Support/com.mumble.app/` |
 | **Menu bar** | Always available; toggle dictation or open the main window without a Dock icon |
 | **Appearance** | Light and dark mode |
 
-AI Commands (Summarize, Action Items, etc.) are in the UI but disabled — reserved for a future local-LLM phase.
+Recording AI Commands (Summarize, Action Items, etc.) are in the UI but disabled — reserved for a future phase.
 
 ## Using Mumble
 
@@ -58,7 +61,13 @@ Click **New Recording** in the sidebar (or press **⌘N**), speak, and stop when
 
 ### Change the model
 
-Open **Settings → Models**. Download additional models anytime; each shows its own progress. `Large v3 Turbo` is recommended for best accuracy on Apple Silicon.
+Open **Settings → Models**. Download additional models anytime; each shows its own progress. **Parakeet TDT v3** is recommended for dictation speed and word-level timing; **Large v3 Turbo** is the most accurate Whisper option on Apple Silicon.
+
+### Smart dictation (optional)
+
+Open **Settings → Intelligence** to enable **Smart dictation**. When on, an on-device interpreter resolves self-corrections (`actually…`, `I mean…`), inline voice commands (`new paragraph`, `strike that`, spoken punctuation), and style presets (Formal, Email, Code, Casual). Snippets let you speak a short trigger to insert longer text.
+
+Requires Apple Intelligence (macOS 26+) or a future MLX fallback model. If the interpreter is unavailable, times out, or rejects its own output, Mumble falls back to the existing deterministic cleanup — your pasted text is never corrupted.
 
 ## Permissions
 
@@ -106,7 +115,10 @@ Mumble/
 ├─ App/            Entry point, delegate, environment, menu bar
 ├─ Dictation/      Push-to-talk controller + floating overlay
 ├─ Audio/          Recording pipeline, waveform analysis
-├─ Transcription/  WhisperKit engine, model manager
+├─ Transcription/  Parakeet + WhisperKit engines, model manager
+├─ Interpret/      On-device interpreter (Foundation Models + MLX fallback)
+├─ Snippets/       Voice trigger → expansion
+├─ Styles/         Style presets and per-app routing
 ├─ Polish/         Text cleanup (fillers, punctuation, dictionary)
 ├─ Output/         Clipboard + paste
 ├─ Storage/        SwiftData models, settings, paths
@@ -116,9 +128,9 @@ Mumble/
 
 ## Roadmap
 
-- Local-LLM AI Commands (Summarize, Action Items, Decisions, Notes)
-- Additional engines behind `TranscriptionEngine` (Parakeet, Apple Speech)
-- Streaming/partial transcripts during dictation
+- MLX interpreter fallback for macOS without Apple Intelligence
+- Recording AI Commands (Summarize, Action Items, Decisions, Notes)
+- Apple Speech engine behind `TranscriptionEngine`
 - Signed + notarized releases and Sparkle auto-update
 
 ## License

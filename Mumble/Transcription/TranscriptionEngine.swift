@@ -9,10 +9,11 @@ struct TranscriptSegment: Sendable {
 struct TranscriptionOutput: Sendable {
     let text: String
     let segments: [TranscriptSegment]
+    let words: [TranscriptWord]
     let language: String?
 
     nonisolated static var empty: TranscriptionOutput {
-        TranscriptionOutput(text: "", segments: [], language: nil)
+        TranscriptionOutput(text: "", segments: [], words: [], language: nil)
     }
 }
 
@@ -41,8 +42,8 @@ enum TranscriptionError: LocalizedError {
     }
 }
 
-/// Abstraction over a speech-to-text backend so engines (WhisperKit today,
-/// Parakeet/AppleSpeech later) can be swapped.
+/// Abstraction over a speech-to-text backend so engines (WhisperKit, Parakeet)
+/// can be swapped.
 protocol TranscriptionEngine: Sendable {
     func prepare(model: String, downloadBase: URL, progress: @escaping @Sendable (Double) -> Void) async throws
     func transcribe(audioPath: String, language: String?) async throws -> TranscriptionOutput
@@ -54,4 +55,21 @@ protocol TranscriptionEngine: Sendable {
     ) async throws -> PartialTranscript
     func resetPartialState() async
     func currentModel() async -> String?
+}
+
+enum TranscriptionEngineKind: String, Sendable {
+    case whisper
+    case parakeet
+}
+
+/// Routes dictation to Parakeet (European languages) or WhisperKit (fallback).
+enum TranscriptionRouter {
+    /// Languages Parakeet v3 does not cover well — route to WhisperKit.
+    static let whisperOnlyLanguages: Set<String> = ["ja", "zh", "ko", "hi", "ar"]
+
+    static func engineKind(for model: String, language: String?) -> TranscriptionEngineKind {
+        guard ModelManager.isParakeetModel(model) else { return .whisper }
+        if let language, whisperOnlyLanguages.contains(language) { return .whisper }
+        return .parakeet
+    }
 }

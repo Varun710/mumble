@@ -56,6 +56,20 @@ final class SettingsStore {
         didSet { persistDictionary() }
     }
 
+    // Intelligence / Interpreter
+    var interpreterEnabled: Bool {
+        didSet { defaults.set(interpreterEnabled, forKey: Keys.interpreterEnabled) }
+    }
+    var stylePreset: StylePreset {
+        didSet { defaults.set(stylePreset.rawValue, forKey: Keys.stylePreset) }
+    }
+    var autoStyleByApp: Bool {
+        didSet { defaults.set(autoStyleByApp, forKey: Keys.autoStyleByApp) }
+    }
+    var snippets: [Snippet] {
+        didSet { persistSnippets() }
+    }
+
     private let defaults: UserDefaults
     private static let legacyDefaultsDomain = "com.mumble.app"
     private static let migrationKey = "settings.migratedLegacyDefaults"
@@ -82,6 +96,16 @@ final class SettingsStore {
         } else {
             self.dictionaryEntries = []
         }
+
+        self.interpreterEnabled = defaults.object(forKey: Keys.interpreterEnabled) as? Bool ?? false
+        self.stylePreset = StylePreset(rawValue: defaults.string(forKey: Keys.stylePreset) ?? "") ?? .neutral
+        self.autoStyleByApp = defaults.object(forKey: Keys.autoStyleByApp) as? Bool ?? true
+        if let data = defaults.data(forKey: Keys.snippets),
+           let decoded = try? JSONDecoder().decode([Snippet].self, from: data) {
+            self.snippets = decoded
+        } else {
+            self.snippets = []
+        }
     }
 
     static let defaultModel = "base"
@@ -101,6 +125,33 @@ final class SettingsStore {
         }
     }
 
+    private func persistSnippets() {
+        if let data = try? JSONEncoder().encode(snippets) {
+            defaults.set(data, forKey: Keys.snippets)
+        }
+    }
+
+    /// Resolves the active style preset (manual or auto by frontmost app).
+    func resolvedStylePreset(bundleID: String?) -> StylePreset {
+        if autoStyleByApp {
+            return AppContextRouter().preset(forFrontmostBundleID: bundleID)
+        }
+        return stylePreset
+    }
+
+    var interpreter: Interpreter {
+        Interpreter(
+            backend: InterpreterBackendFactory.make(),
+            cleanup: textCleaner,
+            snippetExpander: SnippetExpander(store: SnippetStore(entries: snippets))
+        )
+    }
+
+    /// Rebuilds the interpreter when snippets change (called from settings UI if needed).
+    func makeInterpreter() -> Interpreter {
+        interpreter
+    }
+
     private enum Keys {
         static let language = "settings.language"
         static let modelName = "settings.modelName"
@@ -115,6 +166,10 @@ final class SettingsStore {
         static let didCompleteOnboarding = "settings.didCompleteOnboarding"
         static let appearance = "settings.appearance"
         static let dictionary = "settings.dictionary"
+        static let interpreterEnabled = "settings.interpreterEnabled"
+        static let stylePreset = "settings.stylePreset"
+        static let autoStyleByApp = "settings.autoStyleByApp"
+        static let snippets = "settings.snippets"
     }
 }
 
