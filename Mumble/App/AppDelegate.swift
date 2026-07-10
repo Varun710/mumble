@@ -67,12 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag {
-            NSApp.setActivationPolicy(.regular)
-            NSApp.activate(ignoringOtherApps: true)
-            if let window = NSApp.windows.first(where: { !($0 is NSPanel) && $0.canBecomeMain }) {
-                window.makeKeyAndOrderFront(nil)
-            }
-            ActivationPolicyController.recompute()
+            MainWindowPresenter.show()
         }
         return true
     }

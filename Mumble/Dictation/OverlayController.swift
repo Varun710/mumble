@@ -19,6 +19,9 @@ final class OverlayModel {
     var confirmedCaption: String = ""
     /// Draft tail of the live caption (may revise).
     var draftCaption: String = ""
+    /// Explicit presented flag — drives opacity so we never depend on SwiftUI `onAppear`
+    /// (which can miss on non-activating / accessory panels).
+    var isPresented = false
 }
 
 /// Shared overlay dimensions — all phases use the same compact pill size.
@@ -44,7 +47,9 @@ final class OverlayController {
     func setAppearance(_ mode: AppearanceMode) {
         let didChange = appearance != mode
         appearance = mode
-        if didChange {
+        // Avoid replacing the SwiftUI root while the panel is on screen — that can
+        // recreate the view tree mid-dictation. Appearance still applies via AppKit.
+        if didChange, panel?.isVisible != true {
             refreshRootView()
         }
         applyOverlayAppearance()
@@ -57,19 +62,27 @@ final class OverlayController {
         let panel = panel ?? makePanel()
         self.panel = panel
         ensureHostingView(on: panel)
+        // Sync SwiftUI appearance; safe because opacity is driven by `model.isPresented`.
+        refreshRootView()
         applyOverlayAppearance()
 
-        if lastSizedPhase != model.phase {
-            resizePanelToFit()
-            lastSizedPhase = model.phase
-        }
+        // Always re-measure: caption growth and phase changes can leave a stale size.
+        resizePanelToFit()
+        lastSizedPhase = model.phase
 
         position(panel)
+        // Set presented *before* ordering front so the first painted frame is opaque.
+        model.isPresented = true
+        panel.alphaValue = 1
         panel.orderFrontRegardless()
-        AppLog.overlay.debug("show phase=\(String(describing: self.model.phase), privacy: .public)")
+        panel.displayIfNeeded()
+        AppLog.overlay.debug(
+            "show phase=\(String(describing: self.model.phase), privacy: .public) frame=\(String(describing: panel.frame), privacy: .public)"
+        )
     }
 
     func hide() {
+        model.isPresented = false
         panel?.orderOut(nil)
         lastSizedPhase = nil
         model.levels = []
@@ -185,11 +198,30 @@ final class OverlayController {
     }
 
     private func position(_ panel: OverlayPanel) {
-        guard let screen = NSScreen.main else { return }
-        let visible = screen.visibleFrame
+        guard let screen = targetScreen() else {
+            AppLog.overlay.error("position skipped — no screens available")
+            return
+        }
         let size = panel.frame.size
-        let origin = NSPoint(x: visible.midX - size.width / 2, y: visible.minY + 72)
+        let origin = OverlayVisibility.bottomCenterOrigin(
+            visibleFrame: screen.visibleFrame,
+            panelSize: size,
+            bottomOffset: 72
+        )
         panel.setFrameOrigin(origin)
+    }
+
+    /// Prefer the screen under the cursor so the capsule appears where the user is working.
+    private func targetScreen() -> NSScreen? {
+        let screens = NSScreen.screens
+        let frames = screens.map(\.frame)
+        let mainIndex = NSScreen.main.flatMap { main in screens.firstIndex(where: { $0 === main }) }
+        guard let index = OverlayVisibility.targetScreenIndex(
+            mouseLocation: NSEvent.mouseLocation,
+            screens: frames,
+            mainIndex: mainIndex
+        ) else { return nil }
+        return screens[index]
     }
 }
 

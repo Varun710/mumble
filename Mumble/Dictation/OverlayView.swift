@@ -5,7 +5,6 @@ import SwiftUI
 /// Floats above all apps with liquid glass styling.
 struct OverlayView: View {
     @Bindable var model: OverlayModel
-    @State private var appear = false
 
     var body: some View {
         Group {
@@ -17,11 +16,9 @@ struct OverlayView: View {
         }
         .background(Color.clear)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .scaleEffect(appear ? 1 : 0.9)
-        .opacity(appear ? 1 : 0)
-        .onAppear {
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) { appear = true }
-        }
+        .scaleEffect(model.isPresented ? 1 : 0.9)
+        .opacity(OverlayVisibility.contentOpacity(isPresented: model.isPresented))
+        .animation(.spring(response: 0.32, dampingFraction: 0.72), value: model.isPresented)
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: model.phase)
     }
 

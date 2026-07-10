@@ -132,7 +132,7 @@ struct DictationPillChrome: ViewModifier {
             )
 
         if forOverlay {
-            content
+            bordered
         } else {
             bordered
                 .shadow(color: Theme.accent.opacity(0.12), radius: 14, y: 6)

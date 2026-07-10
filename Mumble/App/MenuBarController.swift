@@ -252,17 +252,37 @@ final class MenuBarController {
 
 enum MenuBarActions {
     static func openMainWindow() {
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
-        if let window = NSApp.windows.first(where: { !($0 is NSPanel) && $0.canBecomeMain }) {
-            window.makeKeyAndOrderFront(nil)
-        }
-        ActivationPolicyController.recompute()
+        MainWindowPresenter.show()
     }
 
     static func openSettings() {
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-        ActivationPolicyController.recompute()
+        // Same failure class as the main window: an accessory app must be promoted to
+        // `.regular` and given a beat before the Settings window will come to front.
+        ActivationPolicyController.beginShowingMainWindow()
+        Task { @MainActor in
+            NSApp.setActivationPolicy(.regular)
+            try? await Task.sleep(for: .milliseconds(100))
+            NSApp.activate(ignoringOtherApps: true)
+            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+
+            try? await Task.sleep(for: .milliseconds(120))
+            if let settings = settingsWindow() {
+                settings.makeKeyAndOrderFront(nil)
+                settings.orderFrontRegardless()
+            }
+
+            ActivationPolicyController.endShowingMainWindow()
+            ActivationPolicyController.recompute()
+        }
+    }
+
+    private static func settingsWindow() -> NSWindow? {
+        NSApp.windows.first { window in
+            guard !(window is NSPanel), window.isVisible else { return false }
+            let identifier = window.identifier?.rawValue.localizedCaseInsensitiveContains("settings") ?? false
+            let title = window.title.localizedCaseInsensitiveContains("settings")
+            return identifier || title
+        }
     }
 }
 

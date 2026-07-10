@@ -13,6 +13,7 @@ struct MumbleApp: App {
                 .modelContainer(env.container)
                 .frame(minWidth: 920, minHeight: 600)
                 .background(MainWindowLifecycle())
+                .background(MainWindowOpenBridge())
                 .preferredColorScheme(env.settings.appearance.colorScheme)
         }
         .windowStyle(.titleBar)
@@ -63,6 +64,23 @@ private struct MumbleCommands: Commands {
             }
             .keyboardShortcut("q")
         }
+    }
+}
+
+/// Bridges the AppKit layer back into SwiftUI: when `MainWindowPresenter` cannot find an
+/// existing main window, it posts `.mumbleOpenMainWindow` and this view recreates it via
+/// the scene's `openWindow` action. The view tree stays alive while the window is merely
+/// hidden (`orderOut`), so this reliably re-shows a hidden window too.
+private struct MainWindowOpenBridge: View {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .accessibilityHidden(true)
+            .onReceive(NotificationCenter.default.publisher(for: .mumbleOpenMainWindow)) { _ in
+                openWindow(id: "main")
+            }
     }
 }
 
